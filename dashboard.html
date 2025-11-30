@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>環境部資訊監控儀表板</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <style>
+        body { background-color: #f0f2f5; font-family: 'Segoe UI', sans-serif; }
+        .header { background: linear-gradient(120deg, #2c3e50, #4ca1af); color: white; padding: 2rem 0; margin-bottom: 2rem; border-bottom: 5px solid #ffc107; }
+        .card-custom { border: none; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); background: white; margin-bottom: 20px; transition: all 0.3s; }
+        .card-custom:hover { transform: translateY(-3px); box-shadow: 0 8px 15px rgba(0,0,0,0.1); }
+        .badge-tag { font-size: 0.85em; padding: 5px 10px; border-radius: 20px; }
+        .bg-alert { background-color: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
+        .bg-normal { background-color: #e3f2fd; color: #1565c0; border: 1px solid #90caf9; }
+        .news-link { text-decoration: none; color: #34495e; font-weight: 600; font-size: 1.1rem; }
+        .news-link:hover { color: #0275d8; }
+        .search-bar { border-radius: 30px; padding: 10px 20px; border: 2px solid #ddd; width: 100%; max-width: 400px; }
+        .loading { text-align: center; padding: 50px; color: #666; }
+    </style>
+</head>
+<body>
+
+    <div class="header text-center">
+        <h1><i class="fas fa-recycle me-2"></i>環境部資訊監控儀表板</h1>
+        <p class="opacity-75">資料來源：n8n 自動爬蟲彙整 (Google Sheets)</p>
+    </div>
+
+    <div class="container">
+        <div class="d-flex justify-content-center mb-4">
+            <input type="text" id="searchInput" class="search-bar" placeholder="搜尋標題關鍵字 (如: 廢棄物, 標案)...">
+        </div>
+
+        <div class="row mb-4 text-center">
+            <div class="col-6 col-md-3">
+                <div class="p-3 bg-white rounded shadow-sm">
+                    <h3 id="totalCount" class="text-primary fw-bold">0</h3>
+                    <small class="text-muted">資料總數</small>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="p-3 bg-white rounded shadow-sm">
+                    <h3 id="todayCount" class="text-danger fw-bold">0</h3>
+                    <small class="text-muted">今日新增</small>
+                </div>
+            </div>
+        </div>
+
+        <div id="newsContainer" class="row">
+            <div class="loading"><i class="fas fa-spinner fa-spin fa-2x"></i><br>正在載入資料...</div>
+        </div>
+    </div>
+
+    <script>
+        // 設定 CSV 來源
+        const sheetCsvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSL9csppWjrqt8UOwwOwDxI4WON1aujg78zBush52aLIUeFubdpp9Au93c6cgf_qDLuRRX2NP0OvTkJ/pub?output=csv';
+
+        let allData = [];
+
+        document.addEventListener('DOMContentLoaded', function() {
+            fetchData();
+            
+            // 搜尋監聽
+            document.getElementById('searchInput').addEventListener('input', function(e) {
+                renderData(e.target.value);
+            });
+        });
+
+        // 讀取 Google Sheets CSV
+        function fetchData() {
+            Papa.parse(sheetCsvUrl, {
+                download: true,
+                header: true,
+                complete: function(results) {
+                    // 過濾掉標題或連結為空的行
+                    allData = results.data.filter(item => item.Title && item.Link);
+                    
+                    // 倒序排列 (最新的在上面)
+                    allData.reverse();
+                    
+                    updateStats();
+                    renderData('');
+                },
+                error: function(err) {
+                    document.getElementById('newsContainer').innerHTML = '<div class="text-center text-danger">讀取資料失敗，請確認是否透過伺服器開啟 (Python Server)。<br>' + err + '</div>';
+                }
+            });
+        }
+
+        // 渲染畫面
+        function renderData(keyword) {
+            const container = document.getElementById('newsContainer');
+            container.innerHTML = '';
+
+            const filteredData = allData.filter(item => 
+                (item.Title && item.Title.toLowerCase().includes(keyword.toLowerCase())) || 
+                (item.Tags && item.Tags.includes(keyword))
+            );
+
+            if (filteredData.length === 0) {
+                container.innerHTML = '<div class="text-center text-muted py-5">找不到符合的資料</div>';
+                return;
+            }
+
+            filteredData.forEach(item => {
+                // 判斷標籤樣式
+                const isImportant = item.Tags && (item.Tags.includes('關鍵字') || item.Tags.includes('重點'));
+                const badgeClass = isImportant ? 'bg-alert' : 'bg-normal';
+                const icon = isImportant ? '<i class="fas fa-star me-1"></i>' : '';
+
+                const cardHTML = `
+                    <div class="col-12 col-md-10 offset-md-1">
+                        <div class="card-custom p-3">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <div class="mb-2">
+                                        <span class="badge ${badgeClass} badge-tag">${icon}${item.Tags || '一般'}</span>
+                                        <span class="text-muted ms-2" style="font-size:0.85rem"><i class="far fa-clock me-1"></i>${item.Date}</span>
+                                        <span class="text-muted ms-2" style="font-size:0.85rem"><i class="fas fa-building me-1"></i>${item.Source || '環境部'}</span>
+                                    </div>
+                                    <a href="${item.Link}" target="_blank" class="news-link">${item.Title}</a>
+                                </div>
+                                <div class="ms-3 d-none d-sm-block">
+                                    <a href="${item.Link}" target="_blank" class="btn btn-outline-primary btn-sm rounded-pill">查看</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += cardHTML;
+            });
+        }
+
+        // 更新統計數字 (已修正民國年邏輯)
+        function updateStats() {
+            document.getElementById('totalCount').innerText = allData.length;
+            
+            // 取得今日日期物件
+            const now = new Date();
+            // 計算民國年 (例如 2025 -> 114)
+            const rocYear = now.getFullYear() - 1911;
+            // 格式化月份和日期 (補0，例如 5 -> 05)
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            
+            // 組合出今天的民國日期字串： "114-11-29"
+            const todayStr = `${rocYear}-${month}-${day}`;
+            
+            let todayCount = 0;
+            allData.forEach(item => {
+                // 比對資料中的日期是否包含今天的日期字串
+                if(item.Date && item.Date.includes(todayStr)) { 
+                    todayCount++;
+                }
+            });
+            
+            document.getElementById('todayCount').innerText = todayCount; 
+        }
+    </script>
+</body>
+</html>
