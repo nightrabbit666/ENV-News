@@ -1,0 +1,39 @@
+name: 每日標案爬蟲
+
+on:
+  schedule:
+    # 設定時間：UTC 01:00 = 台灣時間 09:00
+    - cron: '0 1 * * *'
+  # 允許手動按按鈕觸發 (方便測試)
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 下載程式碼 (Checkout)
+        uses: actions/checkout@v3
+
+      - name: 設定 Python 環境
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: 安裝 Chrome 瀏覽器
+        uses: browser-actions/setup-chrome@latest
+
+      - name: 安裝 Python 套件
+        run: |
+          pip install -r requirements.txt
+
+      - name: 產生 key.json 檔案
+        # 這裡會從保險箱取出密鑰，臨時產生一個 key.json 給 Python 用
+        env:
+          GCP_KEY_JSON: ${{ secrets.GCP_KEY_JSON }}
+        run: |
+          echo "$GCP_KEY_JSON" > key.json
+
+      - name: 執行爬蟲
+        run: |
+          python pcc_to_gsheet.py
