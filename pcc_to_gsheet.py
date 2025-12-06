@@ -15,25 +15,21 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 # --- 設定區 ---
 
-# 1. 搜尋清單
 KEYWORDS = ["資源回收", "分選", "細分選場", "細分選廠", "細分類", "廢棄物"]
 ORG_KEYWORDS = ["資源循環署", "環境管理署"]
 
-# 2. Google Sheets 設定
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 JSON_KEY_FILE = os.path.join(BASE_DIR, 'key.json')
 SHEET_URL = 'https://docs.google.com/spreadsheets/d/1oJlYFwsipBg1hGMuUYuOWen2jlX19MDJomukvEoahUE/edit' 
 WORKSHEET_NAME = 'news'
 
-# 3. 目標網址 (基本查詢)
+# 基本查詢網址
 TARGET_URL = "https://web.pcc.gov.tw/prkms/tender/common/basic/"
 
 def init_driver():
     """初始化瀏覽器"""
     chrome_options = Options()
-    # 雲端執行 (GitHub Actions) 必開 headless
-    chrome_options.add_argument("--headless") 
-    
+    chrome_options.add_argument("--headless") # 雲端必開
     chrome_options.add_argument("--window-size=1920,1080")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--no-sandbox")
@@ -49,17 +45,12 @@ def init_driver():
         sys.exit(1)
 
 def search_pcc(driver, keyword, search_type):
-    """
-    執行搜尋
-    search_type: "name" (標案) / "org" (機關)
-    """
     print(f"\n🔍 正在搜尋 [{('機關' if search_type=='org' else '標案')}]：{keyword} ...")
     
     try:
         driver.get(TARGET_URL)
         wait = WebDriverWait(driver, 20)
 
-        # 1. 填入搜尋框
         if search_type == "name":
             input_box = wait.until(EC.visibility_of_element_located((By.NAME, "tenderName")))
             driver.find_element(By.NAME, "orgName").clear()
@@ -70,18 +61,15 @@ def search_pcc(driver, keyword, search_type):
         input_box.clear()
         input_box.send_keys(keyword)
         
-        # 2. 點擊最下方的查詢按鈕
         search_btn = driver.find_element(By.CSS_SELECTOR, "div.buttons input[name='search']")
         driver.execute_script("arguments[0].click();", search_btn)
         
-        # 3. 等待結果
         try:
             WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.CLASS_NAME, "tb_01")))
         except:
             print(f"   -> 查無資料")
             return []
         
-        # 4. 抓取資料
         results = []
         rows = driver.find_elements(By.CSS_SELECTOR, ".tb_01 tbody tr")
         
@@ -90,42 +78,51 @@ def search_pcc(driver, keyword, search_type):
             if len(cols) < 7: continue
                 
             try:
-                # [1] 機關名稱
-                org_name = cols[1].text.strip()
+                # [1] 機關
+                org_name = cols[1].get_attribute("innerText").strip()
                 
-                # [6] 公告日期
-                date_str = cols[6].text.strip()
+                # [6] 日期
+                date_str = cols[6].get_attribute("innerText").strip()
                 
-                # --- ★ 關鍵修正：智慧標題抓取 ---
-                # 第3欄 (Index 2) 同時包含：案號、(更正公告)、標案名稱
-                # 我們抓取這一格裡面「所有的連結」，並找出「文字最長」的那個，那就是標案名稱
-                links_in_cell = cols[2].find_elements(By.TAG_NAME, "a")
-                
+                # --- ★ V10.0 修正邏輯 ---
+                # 目標：從 cols[2] (第3欄) 抓出正確的標題
                 tender_name = ""
                 tender_link = ""
                 
+                # 抓取該格子內所有的 <a> 連結
+                links_in_cell = cols[2].find_elements(By.TAG_NAME, "a")
+                
                 if links_in_cell:
-                    # 找出文字最長的連結 (通常就是標案名稱)
-                    longest_link = max(links_in_cell, key=lambda x: len(x.text.strip()))
-                    tender_name = longest_link.text.strip()
-                    tender_link = longest_link.get_attribute("href")
+                    # 策略 A: 嘗試找出文字最長的連結 (通常是標題)
+                    # 使用 innerText 取代 .text，確保無頭模式也能抓到字
+                    longest_link = max(links_in_cell, key=lambda x: len(x.get_attribute("innerText").strip()))
+                    
+                    # 檢查抓到的長度，如果太短(例如 < 5個字)，可能抓錯了，改用第一個連結
+                    if len(longest_link.get_attribute("innerText").strip()) > 5:
+                        tender_name = longest_link.get_attribute("innerText").strip()
+                        tender_link = longest_link.get_attribute("href")
+                    else:
+                        # 策略 B: 保險機制，直接抓第一個連結
+                        tender_name = links_in_cell[0].get_attribute("innerText").strip()
+                        tender_link = links_in_cell[0].get_attribute("href")
                 else:
-                    # 萬一沒有連結，直接抓文字
-                    tender_name = cols[2].text.strip()
-                    tender_link = "" # 沒連結
+                    # 萬一該欄位沒有連結 (極少見)，直接抓純文字
+                    tender_name = cols[2].get_attribute("innerText").strip()
+                    tender_link = ""
 
-                # 排除空資料或無效標題
-                if not tender_name or len(tender_name) < 2: continue
+                # 排除空資料
+                if not tender_name: 
+                    # print("   (跳過: 標題為空)")
+                    continue
 
                 results.append({
                     "Date": date_str,
-                    "Title": tender_name,  # 這裡現在會是正確的標案中文名稱
+                    "Title": tender_name,
                     "Link": tender_link,
                     "Tags": f"{('機關' if search_type=='org' else '標案')}-{keyword}",
                     "Source": org_name
                 })
             except Exception as inner_e:
-                # print(f"解析錯誤: {inner_e}")
                 continue 
         
         print(f"   -> 成功找到 {len(results)} 筆")
@@ -136,7 +133,6 @@ def search_pcc(driver, keyword, search_type):
         return []
 
 def upload_to_gsheet(df):
-    """上傳至 Google Sheets"""
     print("\n☁️ 正在連線 Google Sheets...")
     
     if not os.path.exists(JSON_KEY_FILE):
@@ -169,7 +165,7 @@ def upload_to_gsheet(df):
         print(f"❌ 上傳 Google Sheets 失敗: {e}")
 
 def main():
-    print("🚀 啟動政府採購網爬蟲 (V9.0 智慧標題版)...")
+    print("🚀 啟動政府採購網爬蟲 (V10.0 穩定版)...")
     driver = init_driver()
     all_data = []
     
@@ -194,9 +190,7 @@ def main():
         
     if all_data:
         df = pd.DataFrame(all_data)
-        # 去重：如果同一個標案被「機關」搜到，又被「關鍵字」搜到，保留第一筆
         df.drop_duplicates(subset=['Link'], keep='first', inplace=True)
-        
         print(f"\n📊 共抓取到 {len(df)} 筆資料，準備上傳...")
         upload_to_gsheet(df)
     else:
