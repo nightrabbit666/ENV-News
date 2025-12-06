@@ -27,13 +27,9 @@ TARGET_URL = "https://web.pcc.gov.tw/pis/"
 
 def init_driver():
     chrome_options = Options()
+    chrome_options.add_argument("--headless") # <--- 請把前面的 # 拿掉，一定要開啟！
     chrome_options.add_argument("--window-size=1280,800")
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-    service = Service(ChromeDriverManager().install())
-    return webdriver.Chrome(service=service, options=chrome_options)
-
+    # ...其他不變
 def search_pis(driver, keyword):
     print(f"\n🔍 [PIS] 正在搜尋：{keyword} ...")
     results = []
@@ -157,4 +153,5 @@ def main():
         print("❌ 沒抓到資料")
 
 if __name__ == "__main__":
+
     main()
