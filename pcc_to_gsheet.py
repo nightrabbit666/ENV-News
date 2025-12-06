@@ -8,6 +8,7 @@ from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -15,16 +16,18 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 # --- 設定區 ---
 
+# 搜尋清單
 KEYWORDS = ["資源回收", "分選", "細分選場", "細分選廠", "細分類", "廢棄物"]
 ORG_KEYWORDS = ["資源循環署", "環境管理署"]
 
+# Google Sheets 設定
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 JSON_KEY_FILE = os.path.join(BASE_DIR, 'key.json')
 SHEET_URL = 'https://docs.google.com/spreadsheets/d/1oJlYFwsipBg1hGMuUYuOWen2jlX19MDJomukvEoahUE/edit' 
 WORKSHEET_NAME = 'news'
 
-# 基本查詢網址
-TARGET_URL = "https://web.pcc.gov.tw/prkms/tender/common/basic/"
+# PIS 首頁 (維持您說能抓到的 PIS 網址)
+TARGET_URL = "https://web.pcc.gov.tw/pis/"
 
 def init_driver():
     """初始化瀏覽器"""
@@ -44,88 +47,71 @@ def init_driver():
         print(f"❌ 瀏覽器啟動失敗: {e}")
         sys.exit(1)
 
-def search_pcc(driver, keyword, search_type):
-    print(f"\n🔍 正在搜尋 [{('機關' if search_type=='org' else '標案')}]：{keyword} ...")
+def search_pis(driver, keyword, search_type):
+    print(f"\n🔍 [PIS] 正在搜尋 ({search_type})：{keyword} ...")
+    results = []
     
     try:
         driver.get(TARGET_URL)
         wait = WebDriverWait(driver, 20)
 
-        if search_type == "name":
-            input_box = wait.until(EC.visibility_of_element_located((By.NAME, "tenderName")))
-            driver.find_element(By.NAME, "orgName").clear()
-        else:
-            input_box = wait.until(EC.visibility_of_element_located((By.NAME, "orgName")))
-            driver.find_element(By.NAME, "tenderName").clear()
-            
-        input_box.clear()
-        input_box.send_keys(keyword)
-        
-        search_btn = driver.find_element(By.CSS_SELECTOR, "div.buttons input[name='search']")
-        driver.execute_script("arguments[0].click();", search_btn)
-        
+        # 1. 找到搜尋框 (PIS 首頁)
         try:
-            WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.CLASS_NAME, "tb_01")))
+            input_box = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "input[type='text']")))
+            # 使用 JavaScript 清空，有時候比 clear() 更穩
+            driver.execute_script("arguments[0].value = '';", input_box)
+            input_box.send_keys(keyword)
+            time.sleep(0.5)
+            input_box.send_keys(Keys.ENTER)
+        except Exception as e:
+            print(f"   ⚠️ 找不到 PIS 搜尋框: {e}")
+            return []
+
+        # 2. 等待搜尋結果 (動態載入)
+        try:
+            wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "a[href*='tender']")))
+            time.sleep(3) 
         except:
             print(f"   -> 查無資料")
             return []
         
-        results = []
-        rows = driver.find_elements(By.CSS_SELECTOR, ".tb_01 tbody tr")
+        # 3. 抓取資料 (PIS 卡片介面)
+        # 我們抓取所有的「tender」連結，但這次我們會試著抓得更準確
+        links_elements = driver.find_elements(By.CSS_SELECTOR, "a[href*='tender']")
         
-        for row in rows:
-            cols = row.find_elements(By.TAG_NAME, "td")
-            if len(cols) < 7: continue
-                
+        date_str = datetime.now().strftime("%Y-%m-%d")
+
+        for elem in links_elements:
             try:
-                # [1] 機關
-                org_name = cols[1].get_attribute("innerText").strip()
+                # --- ★ 修正標題抓取邏輯 ---
+                # PIS 的連結裡面有時候會包很多雜訊 (例如 icon, span 等)
+                # 我們嘗試獲取 innerText，並進行清理
+                raw_text = elem.get_attribute("innerText").strip()
+                link = elem.get_attribute("href")
                 
-                # [6] 日期
-                date_str = cols[6].get_attribute("innerText").strip()
+                # 如果文字太短，直接跳過 (可能是 "更多..." 或按鈕)
+                if len(raw_text) < 5: continue
                 
-                # --- ★ V10.0 修正邏輯 ---
-                # 目標：從 cols[2] (第3欄) 抓出正確的標題
-                tender_name = ""
-                tender_link = ""
+                # 清理標題：移除常見的 PIS 雜訊
+                # 有時候標題會包含 "招標公告" 這種前綴，我們可以切掉
+                # 但為了保險，我們直接用 raw_text，它通常包含了標案名稱
+                title = raw_text.replace('\n', ' ').replace('\r', '')
                 
-                # 抓取該格子內所有的 <a> 連結
-                links_in_cell = cols[2].find_elements(By.TAG_NAME, "a")
+                # 去除重複
+                if not any(d['Link'] == link for d in results):
+                    results.append({
+                        "Date": date_str,
+                        "Title": title,
+                        "Link": link,
+                        "Tags": f"PIS-{search_type}-{keyword}",
+                        "Source": "政府採購網PIS"
+                    })
                 
-                if links_in_cell:
-                    # 策略 A: 嘗試找出文字最長的連結 (通常是標題)
-                    # 使用 innerText 取代 .text，確保無頭模式也能抓到字
-                    longest_link = max(links_in_cell, key=lambda x: len(x.get_attribute("innerText").strip()))
-                    
-                    # 檢查抓到的長度，如果太短(例如 < 5個字)，可能抓錯了，改用第一個連結
-                    if len(longest_link.get_attribute("innerText").strip()) > 5:
-                        tender_name = longest_link.get_attribute("innerText").strip()
-                        tender_link = longest_link.get_attribute("href")
-                    else:
-                        # 策略 B: 保險機制，直接抓第一個連結
-                        tender_name = links_in_cell[0].get_attribute("innerText").strip()
-                        tender_link = links_in_cell[0].get_attribute("href")
-                else:
-                    # 萬一該欄位沒有連結 (極少見)，直接抓純文字
-                    tender_name = cols[2].get_attribute("innerText").strip()
-                    tender_link = ""
-
-                # 排除空資料
-                if not tender_name: 
-                    # print("   (跳過: 標題為空)")
-                    continue
-
-                results.append({
-                    "Date": date_str,
-                    "Title": tender_name,
-                    "Link": tender_link,
-                    "Tags": f"{('機關' if search_type=='org' else '標案')}-{keyword}",
-                    "Source": org_name
-                })
-            except Exception as inner_e:
-                continue 
+                if len(results) >= 15: break
+            except:
+                continue
         
-        print(f"   -> 成功找到 {len(results)} 筆")
+        print(f"   -> 成功提取 {len(results)} 筆有效資料")
         return results
 
     except Exception as e:
@@ -136,7 +122,7 @@ def upload_to_gsheet(df):
     print("\n☁️ 正在連線 Google Sheets...")
     
     if not os.path.exists(JSON_KEY_FILE):
-        print(f"❌ 錯誤：找不到 key.json！路徑: {JSON_KEY_FILE}")
+        print(f"❌ 錯誤：找不到 key.json")
         return
 
     try:
@@ -157,7 +143,7 @@ def upload_to_gsheet(df):
         
         if new_rows:
             sheet.append_rows(new_rows)
-            print(f"✅ 成功上傳 {len(new_rows)} 筆新資料到雲端！")
+            print(f"✅ 成功上傳 {len(new_rows)} 筆新資料！")
         else:
             print("⚠️ 沒有新的不重複資料需上傳。")
             
@@ -165,24 +151,22 @@ def upload_to_gsheet(df):
         print(f"❌ 上傳 Google Sheets 失敗: {e}")
 
 def main():
-    print("🚀 啟動政府採購網爬蟲 (V10.0 穩定版)...")
+    print("🚀 啟動 PIS 暴力搜尋爬蟲 (V8.1 標題修正版)...")
     driver = init_driver()
     all_data = []
     
     try:
         # 1. 搜尋機關
-        print("\n--- 搜尋機關名稱 ---")
         for org in ORG_KEYWORDS:
-            data = search_pcc(driver, org, search_type="org")
+            data = search_pis(driver, org, search_type="機關")
             all_data.extend(data)
-            time.sleep(1)
+            time.sleep(2)
 
-        # 2. 搜尋標案
-        print("\n--- 搜尋標案關鍵字 ---")
+        # 2. 搜尋標案關鍵字
         for kw in KEYWORDS:
-            data = search_pcc(driver, kw, search_type="name")
+            data = search_pis(driver, kw, search_type="標案")
             all_data.extend(data)
-            time.sleep(1)
+            time.sleep(2)
             
     finally:
         print("\n🛑 關閉瀏覽器...")
