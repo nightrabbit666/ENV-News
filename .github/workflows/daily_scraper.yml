@@ -2,9 +2,9 @@ name: 每日標案爬蟲
 
 on:
   schedule:
-    # 設定時間：UTC 01:00 = 台灣時間 09:00
+    # 每天台灣時間 09:00 (UTC 01:00)
     - cron: '0 1 * * *'
-  # 允許手動按按鈕觸發 (方便測試)
+  # 允許手動按按鈕觸發
   workflow_dispatch:
 
 jobs:
@@ -27,8 +27,8 @@ jobs:
         run: |
           pip install -r requirements.txt
 
-      - name: 產生 key.json 檔案
-        # 這裡會從保險箱取出密鑰，臨時產生一個 key.json 給 Python 用
+      - name: 產生 key.json 憑證檔
+        # ★ 這裡就是關鍵：把保險箱的密碼拿出來，存成檔案給 Python 用
         env:
           GCP_KEY_JSON: ${{ secrets.GCP_KEY_JSON }}
         run: |
