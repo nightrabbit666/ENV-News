@@ -16,7 +16,9 @@ from webdriver_manager.chrome import ChromeDriverManager
 # --- 設定區 ---
 
 # 1. 搜尋清單
+# 標案名稱關鍵字
 KEYWORDS = ["資源回收", "分選", "細分選場", "細分選廠", "細分類", "廢棄物"]
+# 機關名稱關鍵字
 ORG_KEYWORDS = ["資源循環署", "環境管理署"]
 
 # 2. Google Sheets 設定
@@ -28,13 +30,15 @@ JSON_KEY_FILE = os.path.join(BASE_DIR, 'key.json')
 SHEET_URL = 'https://docs.google.com/spreadsheets/d/1oJlYFwsipBg1hGMuUYuOWen2jlX19MDJomukvEoahUE/edit' 
 WORKSHEET_NAME = 'news'
 
-# 3. 目標網址 (基本查詢首頁 - 對應您的截圖)
+# 3. 目標網址 (基本查詢首頁 - 您指定的正確網址)
 TARGET_URL = "https://web.pcc.gov.tw/prkms/tender/common/basic/indexTenderBasic"
 
 def init_driver():
     """初始化瀏覽器"""
     chrome_options = Options()
-    # ⚠️ 雲端執行 (GitHub Actions) 必開無頭模式
+    
+    # ⚠️【關鍵修正】強制開啟無頭模式
+    # 這行絕對不能被註解掉，否則 GitHub Actions 會直接報錯 (NoneType error)
     chrome_options.add_argument("--headless") 
     
     chrome_options.add_argument("--window-size=1920,1080")
@@ -49,6 +53,7 @@ def init_driver():
         return driver
     except Exception as e:
         print(f"❌ 瀏覽器啟動失敗: {e}")
+        # 如果瀏覽器沒啟動成功，直接結束程式，避免後續報錯
         sys.exit(1)
 
 def search_pcc(driver, keyword, search_type):
@@ -77,34 +82,36 @@ def search_pcc(driver, keyword, search_type):
         input_box.clear()
         input_box.send_keys(keyword)
         
-        # 2. 點擊「查詢」按鈕
-        # 鎖定 form 裡面的查詢按鈕
+        # 2. 點擊「查詢」按鈕 (紅框處)
+        # 鎖定 form 裡面的查詢按鈕，避免點到旁邊的小幫手
         search_btn = driver.find_element(By.CSS_SELECTOR, "input[name='search']")
         driver.execute_script("arguments[0].click();", search_btn)
         
-        # 3. 等待結果
+        # 3. 等待結果 & 嚴格過濾
         try:
             # 等待表格出現
             wait.until(EC.presence_of_element_located((By.CLASS_NAME, "tb_01")))
             
-            # 檢查是否查無資料
-            page_source = driver.page_source
-            if "無符合條件資料" in page_source or "無資料" in page_source:
+            # ★ 關鍵檢查：如果網頁顯示「無符合條件資料」，直接跳過！
+            # 這樣就絕對不會去抓到上面的選單按鈕
+            page_text = driver.find_element(By.TAG_NAME, "body").text
+            if "無符合條件資料" in page_text or "無資料" in page_text:
                 print(f"   -> 查無資料 (跳過)")
                 return []
         except:
-            print(f"   -> 載入超時或無表格")
+            print(f"   -> 載入超時或無表格 (跳過)")
             return []
         
-        # 4. 抓取資料 (針對 tb_01 表格結構)
+        # 4. 抓取資料 (精準抓取表格內容)
         results = []
         rows = driver.find_elements(By.CSS_SELECTOR, ".tb_01 tbody tr")
         
-        # 今天的日期 (備用)
-        today_str = datetime.now().strftime("%Y-%m-%d")
+        # 垃圾標題黑名單 (雙重保險)
+        JUNK_TITLES = ["標案查詢", "決標查詢", "全文檢索", "公告日期查詢", "機關名稱查詢"]
 
         for row in rows:
             cols = row.find_elements(By.TAG_NAME, "td")
+            # 欄位數量檢查：基本查詢表格通常有 9 欄
             if len(cols) < 7: continue
                 
             try:
@@ -113,18 +120,16 @@ def search_pcc(driver, keyword, search_type):
                 
                 # [6] 公告日期
                 date_str = cols[6].text.strip()
-                if not date_str: date_str = today_str 
                 
                 # [2] 標案名稱與連結
-                # 這一格最複雜，包含案號、(更正)、名稱
-                # 我們抓取裡面所有的連結，選字數最多的那個當標題
+                # 這裡同時有「案號」跟「名稱」，我們用長度判斷抓出名稱
                 links_in_cell = cols[2].find_elements(By.TAG_NAME, "a")
                 
                 tender_name = ""
                 tender_link = ""
                 
                 if links_in_cell:
-                    # 找出文字最長的連結 (排除案號)
+                    # 找出文字最長的連結 (排除短案號)
                     longest_link = max(links_in_cell, key=lambda x: len(x.text.strip()))
                     tender_name = longest_link.text.strip()
                     tender_link = longest_link.get_attribute("href")
@@ -132,11 +137,11 @@ def search_pcc(driver, keyword, search_type):
                     # 沒連結就抓純文字
                     tender_name = cols[2].text.strip()
 
-                # 過濾無效資料
+                # ★ 防垃圾過濾器
+                # 1. 如果標題太短或空的 -> 丟掉
                 if not tender_name or len(tender_name) < 2: continue
-                
-                # 過濾常見垃圾標題
-                if "標案查詢" in tender_name or "機關代碼" in tender_name: continue
+                # 2. 如果標題是選單文字 -> 丟掉
+                if any(junk in tender_name for junk in JUNK_TITLES): continue
 
                 results.append({
                     "Date": date_str,
@@ -190,7 +195,7 @@ def upload_to_gsheet(df):
         print(f"❌ 上傳 Google Sheets 失敗: {e}")
 
 def main():
-    print("🚀 啟動政府採購網爬蟲 (V14.0 純淨版)...")
+    print("🚀 啟動政府採購網爬蟲 (V15.0 雲端修正版)...")
     driver = init_driver()
     all_data = []
     
@@ -211,13 +216,12 @@ def main():
             
     finally:
         print("\n🛑 關閉瀏覽器...")
-        driver.quit()
+        if driver:
+            driver.quit()
         
     if all_data:
         df = pd.DataFrame(all_data)
-        # 根據網址去重
         df.drop_duplicates(subset=['Link'], keep='first', inplace=True)
-        
         print(f"\n📊 共抓取到 {len(df)} 筆資料，準備上傳...")
         upload_to_gsheet(df)
     else:
