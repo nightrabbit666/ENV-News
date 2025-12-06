@@ -16,18 +16,19 @@ from webdriver_manager.chrome import ChromeDriverManager
 # --- 設定區 ---
 
 # 1. 搜尋清單
-# 標案名稱關鍵字
 KEYWORDS = ["資源回收", "分選", "細分選場", "細分選廠", "細分類", "廢棄物"]
-# 機關名稱關鍵字
 ORG_KEYWORDS = ["資源循環署", "環境管理署"]
 
 # 2. Google Sheets 設定
+# 自動抓取當前目錄下的 key.json (由 GitHub Actions 產生)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 JSON_KEY_FILE = os.path.join(BASE_DIR, 'key.json')
+
+# ⚠️ 請確認您的試算表網址與工作表名稱
 SHEET_URL = 'https://docs.google.com/spreadsheets/d/1oJlYFwsipBg1hGMuUYuOWen2jlX19MDJomukvEoahUE/edit' 
 WORKSHEET_NAME = 'news'
 
-# 3. 目標網址 (您提供的基本查詢首頁)
+# 3. 目標網址 (基本查詢首頁 - 對應您的截圖)
 TARGET_URL = "https://web.pcc.gov.tw/prkms/tender/common/basic/indexTenderBasic"
 
 def init_driver():
@@ -62,7 +63,6 @@ def search_pcc(driver, keyword, search_type):
         wait = WebDriverWait(driver, 20)
 
         # 1. 鎖定輸入框 (互斥邏輯：填一個，清空另一個)
-        # 根據您的截圖，這個頁面有明確的 orgName 和 tenderName 欄位
         if search_type == "name":
             # 填入 @標案名稱
             input_box = wait.until(EC.visibility_of_element_located((By.NAME, "tenderName")))
@@ -78,7 +78,7 @@ def search_pcc(driver, keyword, search_type):
         input_box.send_keys(keyword)
         
         # 2. 點擊「查詢」按鈕
-        # 鎖定 form 裡面的查詢按鈕，避免點到旁邊的小幫手
+        # 鎖定 form 裡面的查詢按鈕
         search_btn = driver.find_element(By.CSS_SELECTOR, "input[name='search']")
         driver.execute_script("arguments[0].click();", search_btn)
         
@@ -100,13 +100,11 @@ def search_pcc(driver, keyword, search_type):
         results = []
         rows = driver.find_elements(By.CSS_SELECTOR, ".tb_01 tbody tr")
         
-        # 今天的日期 (用於補足資料，如果網頁沒抓到日期)
+        # 今天的日期 (備用)
         today_str = datetime.now().strftime("%Y-%m-%d")
 
         for row in rows:
             cols = row.find_elements(By.TAG_NAME, "td")
-            # 基本查詢表格通常有 9 欄
-            # [1]機關, [2]案號/名稱, [3]傳輸次數... [6]公告日期
             if len(cols) < 7: continue
                 
             try:
@@ -115,7 +113,7 @@ def search_pcc(driver, keyword, search_type):
                 
                 # [6] 公告日期
                 date_str = cols[6].text.strip()
-                if not date_str: date_str = today_str # 保險起見
+                if not date_str: date_str = today_str 
                 
                 # [2] 標案名稱與連結
                 # 這一格最複雜，包含案號、(更正)、名稱
@@ -137,7 +135,7 @@ def search_pcc(driver, keyword, search_type):
                 # 過濾無效資料
                 if not tender_name or len(tender_name) < 2: continue
                 
-                # 過濾常見垃圾標題 (選單文字)
+                # 過濾常見垃圾標題
                 if "標案查詢" in tender_name or "機關代碼" in tender_name: continue
 
                 results.append({
@@ -162,7 +160,7 @@ def upload_to_gsheet(df):
     print("\n☁️ 正在連線 Google Sheets...")
     
     if not os.path.exists(JSON_KEY_FILE):
-        print(f"❌ 錯誤：找不到 key.json")
+        print(f"❌ 錯誤：找不到 key.json！路徑: {JSON_KEY_FILE}")
         return
 
     try:
@@ -184,7 +182,7 @@ def upload_to_gsheet(df):
         
         if new_rows:
             sheet.append_rows(new_rows)
-            print(f"✅ 成功上傳 {len(new_rows)} 筆新資料！")
+            print(f"✅ 成功上傳 {len(new_rows)} 筆新資料到雲端！")
         else:
             print("⚠️ 沒有新的不重複資料需上傳。")
             
@@ -192,7 +190,7 @@ def upload_to_gsheet(df):
         print(f"❌ 上傳 Google Sheets 失敗: {e}")
 
 def main():
-    print("🚀 啟動政府採購網爬蟲 (V13.0 基本查詢版)...")
+    print("🚀 啟動政府採購網爬蟲 (V14.0 純淨版)...")
     driver = init_driver()
     all_data = []
     
@@ -217,7 +215,9 @@ def main():
         
     if all_data:
         df = pd.DataFrame(all_data)
+        # 根據網址去重
         df.drop_duplicates(subset=['Link'], keep='first', inplace=True)
+        
         print(f"\n📊 共抓取到 {len(df)} 筆資料，準備上傳...")
         upload_to_gsheet(df)
     else:
