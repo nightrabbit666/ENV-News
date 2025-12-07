@@ -22,35 +22,59 @@
         /* 卡片樣式 */
         .card-custom { 
             border: none; 
-            border-radius: 15px; 
-            box-shadow: 0 5px 15px rgba(0,0,0,0.05); 
+            border-radius: 12px; 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.03); 
             background: white; 
-            margin-bottom: 15px; 
+            margin-bottom: 10px; 
             transition: transform 0.2s; 
             border-left: 5px solid transparent;
         }
-        .card-custom:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
+        .card-custom:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.08); }
         
         /* 來源分類顏色條 */
-        .source-pis { border-left-color: #ffc107; } /* 黃色: 標案 */
-        .source-env { border-left-color: #28a745; } /* 綠色: 環境部 */
+        .source-pis { border-left-color: #ffc107; } 
+        .source-env { border-left-color: #28a745; }
 
         /* 標籤樣式 */
-        .badge-tag { font-size: 0.8rem; padding: 5px 10px; border-radius: 20px; font-weight: normal;}
-        .bg-pis { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
-        .bg-env { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .badge-tag { font-size: 0.8rem; padding: 4px 8px; border-radius: 4px; font-weight: normal;}
+        .bg-pis { background-color: #fff3cd; color: #856404; }
+        .bg-env { background-color: #d4edda; color: #155724; }
         
         /* 連結樣式 */
-        .news-link { text-decoration: none; color: #2c3e50; font-weight: 600; font-size: 1.1rem; display: block; margin-bottom: 5px; }
+        .news-link { text-decoration: none; color: #2c3e50; font-weight: 600; font-size: 1.05rem; display: block; margin-bottom: 5px; }
         .news-link:hover { color: #0062E6; }
         
-        /* 搜尋框與按鈕 */
-        .search-bar { border-radius: 50px; padding: 12px 25px; border: 1px solid #ced4da; width: 100%; max-width: 500px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        /* 搜尋框 */
+        .search-bar { border-radius: 50px; padding: 12px 25px; border: 1px solid #ced4da; width: 100%; max-width: 500px; }
         
         /* 分頁籤樣式 */
-        .nav-pills .nav-link { border-radius: 50px; padding: 10px 25px; font-weight: 600; color: #6c757d; margin-right: 10px;}
+        .nav-pills .nav-link { border-radius: 50px; padding: 8px 20px; font-weight: 600; color: #6c757d; margin-right: 10px;}
         .nav-pills .nav-link.active { background-color: #0062E6; color: white; }
         
+        /* ★ 新增：日期分隔線樣式 */
+        .date-separator {
+            display: flex;
+            align-items: center;
+            margin: 25px 0 15px 0;
+            color: #adb5bd;
+            font-size: 0.9rem;
+            font-weight: bold;
+        }
+        .date-separator::before, .date-separator::after {
+            content: "";
+            flex: 1;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .date-separator::before { margin-right: 15px; }
+        .date-separator::after { margin-left: 15px; }
+        .date-text {
+            background-color: #e9ecef;
+            color: #495057;
+            padding: 5px 15px;
+            border-radius: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
         .loading { text-align: center; padding: 50px; color: #6c757d; }
         .empty-state { text-align: center; padding: 40px; color: #adb5bd; }
     </style>
@@ -65,7 +89,7 @@
     <div class="container" style="max-width: 900px;">
         
         <div class="d-flex justify-content-center mb-4">
-            <input type="text" id="searchInput" class="search-bar" placeholder="🔍 搜尋標題關鍵字...">
+            <input type="text" id="searchInput" class="search-bar" placeholder="🔍 搜尋標題、機關或關鍵字...">
         </div>
 
         <div class="row mb-4 text-center g-3">
@@ -103,68 +127,64 @@
         </ul>
 
         <div class="tab-content" id="pills-tabContent">
-            
             <div class="tab-pane fade show active" id="pills-today" role="tabpanel">
                 <div id="container-today">
-                    <div class="loading"><i class="fas fa-spinner fa-spin fa-2x mb-2"></i><br>正在讀取最新資料...</div>
+                    <div class="loading"><i class="fas fa-spinner fa-spin fa-2x mb-2"></i><br>正在讀取...</div>
                 </div>
             </div>
-            
             <div class="tab-pane fade" id="pills-history" role="tabpanel">
                 <div id="container-history">
-                    <div class="loading"><i class="fas fa-spinner fa-spin fa-2x mb-2"></i><br>正在讀取歷史資料...</div>
+                    <div class="loading"><i class="fas fa-spinner fa-spin fa-2x mb-2"></i><br>正在讀取...</div>
                 </div>
             </div>
-
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
-        // ⚠️ 請確認這是您的 CSV 發布連結
+        // ⚠️ 請確認這是您的 CSV 連結
         const sheetCsvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSL9csppWjrqt8UOwwOwDxI4WON1aujg78zBush52aLIUeFubdpp9Au93c6cgf_qDLuRRX2NP0OvTkJ/pub?output=csv';
 
         let allData = [];
-        let todayStr = ""; // 用來存今天的日期字串 (民國年格式)
+        let todayStr = "";
 
-        // 初始化
         document.addEventListener('DOMContentLoaded', function() {
-            // 計算今天的民國日期 (格式: 114/12/06)
+            // 計算今日日期 (114/xx/xx)
             const dateObj = new Date();
             const year = dateObj.getFullYear() - 1911;
             const month = String(dateObj.getMonth() + 1).padStart(2, '0');
             const day = String(dateObj.getDate()).padStart(2, '0');
             todayStr = `${year}/${month}/${day}`;
             
-            console.log("Today is:", todayStr); // 除錯用
-
             fetchData();
             
-            // 搜尋監聽 (同時過濾兩個分頁)
+            // 搜尋監聽
             document.getElementById('searchInput').addEventListener('input', function(e) {
                 const keyword = e.target.value;
-                renderList(filterData(allData, true, keyword), 'container-today');
-                renderList(filterData(allData, false, keyword), 'container-history');
+                // 今日: 不分組 (groupByDate = false)
+                renderList(filterData(allData, true, keyword), 'container-today', false);
+                // 歷史: 要分組 (groupByDate = true)
+                renderList(filterData(allData, false, keyword), 'container-history', true);
             });
         });
 
-        // 讀取 CSV
         function fetchData() {
             Papa.parse(sheetCsvUrl, {
                 download: true,
                 header: true,
                 complete: function(results) {
-                    // 過濾無效資料
                     allData = results.data.filter(item => item.Title && item.Link);
-                    // 倒序 (最新的在最上面)
-                    allData.reverse();
+                    allData.reverse(); // 最新的在上面
                     
                     updateStats();
                     
-                    // 初始渲染：分別渲染「今日」與「歷史」
-                    renderList(filterData(allData, true, ''), 'container-today');
-                    renderList(filterData(allData, false, ''), 'container-history');
+                    // 初始渲染
+                    // 今日資料：直接列表，不需要日期分隔線 (因為都是今天)
+                    renderList(filterData(allData, true, ''), 'container-today', false);
+                    
+                    // 歷史資料：依照日期分組顯示 (true)
+                    renderList(filterData(allData, false, ''), 'container-history', true);
                 },
                 error: function(err) {
                     document.getElementById('container-today').innerHTML = '<div class="text-danger text-center">資料讀取失敗</div>';
@@ -172,32 +192,24 @@
             });
         }
 
-        // 資料篩選器
-        // isToday: true (只回傳今天), false (只回傳非今天)
-        // keyword: 搜尋關鍵字
         function filterData(data, isToday, keyword) {
             return data.filter(item => {
-                // 1. 日期過濾
-                // 注意：PCC 日期格式通常是 "114/12/06"
-                // 有些來源可能是 "2025-12-06"，這裡做模糊比對
                 const itemDate = item.Date || "";
                 const matchDate = itemDate.includes(todayStr); 
                 
-                if (isToday && !matchDate) return false; // 如果要今天，但日期不符 -> 剔除
-                if (!isToday && matchDate) return false; // 如果要歷史，但日期是今天 -> 剔除
+                if (isToday && !matchDate) return false; 
+                if (!isToday && matchDate) return false; 
 
-                // 2. 關鍵字過濾
                 if (keyword) {
-                    const searchStr = (item.Title + item.Tags + item.Source).toLowerCase();
+                    const searchStr = (item.Title + item.Tags + item.Source + item.Date).toLowerCase();
                     if (!searchStr.includes(keyword.toLowerCase())) return false;
                 }
-                
                 return true;
             });
         }
 
-        // 渲染列表 (核心功能)
-        function renderList(data, containerId) {
+        // ★ 核心渲染函式 (支援日期分組)
+        function renderList(data, containerId, groupByDate) {
             const container = document.getElementById(containerId);
             container.innerHTML = '';
 
@@ -207,8 +219,23 @@
             }
 
             let html = '';
+            let lastDate = ''; // 紀錄上一筆的日期
+
             data.forEach(item => {
-                // 判斷來源樣式 (PIS vs 其他)
+                // --- 日期分組邏輯 ---
+                if (groupByDate) {
+                    // 如果這筆資料的日期 跟 上一筆不一樣，就插入一個標題
+                    if (item.Date !== lastDate) {
+                        html += `
+                            <div class="date-separator">
+                                <span class="date-text"><i class="far fa-calendar-alt me-2"></i>${item.Date}</span>
+                            </div>
+                        `;
+                        lastDate = item.Date;
+                    }
+                }
+                // --------------------
+
                 const isPis = item.Source && item.Source.includes("採購");
                 const borderClass = isPis ? 'source-pis' : 'source-env';
                 const badgeClass = isPis ? 'bg-pis' : 'bg-env';
@@ -219,13 +246,11 @@
                         <div class="d-flex justify-content-between align-items-start">
                             <div class="flex-grow-1">
                                 <div class="mb-2">
-                                    <span class="badge ${badgeClass} badge-tag text-dark">${icon}${item.Source || '來源未知'}</span>
+                                    <span class="badge ${badgeClass} badge-tag text-dark">${icon} ${item.Source || '來源未知'}</span>
                                     <span class="badge bg-light text-secondary border badge-tag ms-1">
-                                        <i class="fas fa-tag me-1"></i>${item.Tags || '一般'}
+                                        <i class="fas fa-tag me-1"></i> ${item.Tags || '一般'}
                                     </span>
-                                    <span class="text-muted ms-2 small">
-                                        <i class="far fa-clock me-1"></i>${item.Date}
-                                    </span>
+                                    ${!groupByDate ? `<span class="text-muted ms-2 small"><i class="far fa-clock me-1"></i>${item.Date}</span>` : ''}
                                 </div>
                                 <a href="${item.Link}" target="_blank" class="news-link">
                                     ${item.Title}
@@ -243,16 +268,10 @@
             container.innerHTML = html;
         }
 
-        // 更新統計數字
         function updateStats() {
-            // 總數
             document.getElementById('totalCount').innerText = allData.length;
-            
-            // 今日數
             const todayCount = allData.filter(item => item.Date && item.Date.includes(todayStr)).length;
             document.getElementById('todayCount').innerText = todayCount;
-            
-            // 歷史數
             document.getElementById('historyCount').innerText = allData.length - todayCount;
         }
     </script>
