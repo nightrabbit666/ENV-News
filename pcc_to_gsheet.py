@@ -23,7 +23,7 @@ HEADLESS_MODE = true
 
 # --- 設定區 ---
 # 錯誤報警設定 (Discord, 可留空)
-DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/xxxxxx/xxxxxx" 
+DISCORD_WEBHOOK_URL = "" 
 
 # 預設關鍵字
 DEFAULT_KEYWORDS = ["資源回收", "分選", "細分選場", "細分選廠", "細分類", "廢棄物"]
@@ -296,3 +296,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
