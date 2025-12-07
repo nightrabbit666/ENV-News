@@ -4,8 +4,9 @@ import sys
 import pandas as pd
 import gspread
 import traceback
+import requests
 from oauth2client.service_account import ServiceAccountCredentials
-from datetime import datetime
+from datetime import datetime, timedelta
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -15,17 +16,32 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
+# --- 【切換開關】 (V23.1 功能回歸) ---
+# ★ False = 本機看畫面 (除錯用)
+# ★ True  = 雲端背景執行 (上傳 GitHub 前請改回 True)
+HEADLESS_MODE = true
+
 # --- 設定區 ---
-KEYWORDS = ["資源回收", "分選", "細分選場", "細分選廠", "細分類", "廢棄物"]
-ORG_KEYWORDS = ["資源循環署", "環境管理署"]
+# 錯誤報警設定 (Discord, 可留空)
+DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/xxxxxx/xxxxxx" 
+
+# 預設關鍵字
+DEFAULT_KEYWORDS = ["資源回收", "分選", "細分選場", "細分選廠", "細分類", "廢棄物"]
+DEFAULT_ORG_KEYWORDS = ["資源循環署", "環境管理署"]
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 JSON_KEY_FILE = os.path.join(BASE_DIR, 'key.json')
 SHEET_URL = 'https://docs.google.com/spreadsheets/d/1oJlYFwsipBg1hGMuUYuOWen2jlX19MDJomukvEoahUE/edit' 
-WORKSHEET_NAME = 'news'
-LOG_SHEET_NAME = 'logs' # 新增：日誌工作表名稱
 
+WORKSHEET_NAME = 'news'
+LOG_SHEET_NAME = 'logs'
+CONFIG_SHEET_NAME = 'Config'
+HISTORY_SHEET_NAME = 'history'
+
+# 目標網址
 TARGET_URL = "https://web.pcc.gov.tw/prkms/tender/common/basic/indexTenderBasic"
+
+# --- 基礎建設函式 ---
 
 def get_google_client():
     if not os.path.exists(JSON_KEY_FILE):
@@ -35,20 +51,92 @@ def get_google_client():
     return gspread.authorize(creds)
 
 def log_to_sheet(status, message):
-    """寫入系統日誌"""
+    """寫入系統日誌 (V27 功能)"""
     print(f"[{status}] {message}")
     try:
         client = get_google_client()
         sheet = client.open_by_url(SHEET_URL).worksheet(LOG_SHEET_NAME)
-        # 寫入: 時間, 狀態, 訊息
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         sheet.append_row([timestamp, status, message])
     except Exception as e:
-        print(f"❌ 無法寫入日誌: {e}")
+        print(f"❌ 日誌寫入失敗: {e}")
+
+def send_alert(message):
+    """發送 Discord 警報"""
+    if "discord.com" in DISCORD_WEBHOOK_URL:
+        try:
+            requests.post(DISCORD_WEBHOOK_URL, json={"content": f"🚨 爬蟲異常: {message}"})
+        except:
+            pass
+
+def load_keywords_from_sheet():
+    """讀取雲端關鍵字 (V26 功能)"""
+    try:
+        client = get_google_client()
+        sheet = client.open_by_url(SHEET_URL).worksheet(CONFIG_SHEET_NAME)
+        records = sheet.get_all_records()
+        keywords = [r['Keyword'] for r in records if r['Type'] == '標案' and r['Keyword']]
+        orgs = [r['Keyword'] for r in records if r['Type'] == '機關' and r['Keyword']]
+        
+        if not keywords: keywords = DEFAULT_KEYWORDS
+        if not orgs: orgs = DEFAULT_ORG_KEYWORDS
+        return keywords, orgs
+    except:
+        return DEFAULT_KEYWORDS, DEFAULT_ORG_KEYWORDS
+
+def archive_old_records():
+    """自動封存舊資料 (V26 功能)"""
+    print("\n📦 檢查資料封存...")
+    try:
+        client = get_google_client()
+        doc = client.open_by_url(SHEET_URL)
+        news_sheet = doc.worksheet(WORKSHEET_NAME)
+        try:
+            history_sheet = doc.worksheet(HISTORY_SHEET_NAME)
+        except:
+            return 
+
+        all_records = news_sheet.get_all_records()
+        if not all_records: return
+
+        deadline = datetime.now() - timedelta(days=180)
+        rows_keep, rows_archive = [], []
+        header = news_sheet.row_values(1)
+
+        for row in all_records:
+            try:
+                d_str = str(row['Date'])
+                if '/' in d_str:
+                    parts = d_str.split('/')
+                    r_date = datetime(int(parts[0]) + 1911, int(parts[1]), int(parts[2]))
+                    if r_date < deadline:
+                        rows_archive.append(list(row.values()))
+                    else:
+                        rows_keep.append(list(row.values()))
+                else:
+                    rows_keep.append(list(row.values()))
+            except:
+                rows_keep.append(list(row.values()))
+
+        if rows_archive:
+            history_sheet.append_rows(rows_archive)
+            news_sheet.clear()
+            news_sheet.append_row(header)
+            if rows_keep:
+                news_sheet.append_rows(rows_keep)
+                
+    except Exception as e:
+        log_to_sheet("ERROR", f"封存失敗: {e}")
+
+# --- 爬蟲核心 (V25.0 邏輯回歸) ---
 
 def init_driver():
     chrome_options = Options()
-    chrome_options.add_argument("--headless") 
+    
+    # 這裡恢復了 V23 的開關功能
+    if HEADLESS_MODE:
+        chrome_options.add_argument("--headless") 
+    
     chrome_options.add_argument("--window-size=1920,1080")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--no-sandbox")
@@ -67,6 +155,7 @@ def search_pcc(driver, keyword, search_type):
         driver.get(TARGET_URL)
         wait = WebDriverWait(driver, 20)
 
+        # 1. 填入搜尋框 (互斥邏輯)
         if search_type == "name":
             input_box = wait.until(EC.visibility_of_element_located((By.NAME, "tenderName")))
             driver.find_element(By.NAME, "orgName").clear()
@@ -77,8 +166,15 @@ def search_pcc(driver, keyword, search_type):
         input_box.clear()
         input_box.send_keys(keyword)
         time.sleep(0.5) 
-        input_box.send_keys(Keys.ENTER)
         
+        # --- ★ V25.0 核心回歸：強制執行 JS ---
+        try:
+            driver.execute_script("basicTenderSearch();")
+        except:
+            # 備案：Enter
+            input_box.send_keys(Keys.ENTER)
+        
+        # 3. 等待結果 & 嚴格過濾
         try:
             wait.until(EC.presence_of_element_located((By.CLASS_NAME, "tb_01")))
             page_text = driver.find_element(By.TAG_NAME, "body").text
@@ -87,6 +183,7 @@ def search_pcc(driver, keyword, search_type):
         except:
             return []
         
+        # 4. 抓取資料
         results = []
         rows = driver.find_elements(By.CSS_SELECTOR, ".tb_01 tbody tr")
         JUNK_TITLES = ["標案查詢", "決標查詢", "全文檢索", "公告日期查詢", "機關名稱查詢", "功能選項", "更正公告"]
@@ -97,15 +194,21 @@ def search_pcc(driver, keyword, search_type):
             try:
                 org_name = cols[1].text.strip()
                 date_str = cols[6].text.strip()
+                deadline = cols[7].text.strip() if len(cols) > 7 else ""
+                budget = cols[8].text.strip() if len(cols) > 8 else ""
                 
                 links_in_cell = cols[2].find_elements(By.TAG_NAME, "a")
+                
+                tender_name = ""
+                tender_link = ""
+                
+                # V25 智慧標題抓取 (找最長字串)
                 if links_in_cell:
                     longest_link = max(links_in_cell, key=lambda x: len(x.text.strip()))
                     tender_name = longest_link.text.strip()
                     tender_link = longest_link.get_attribute("href")
                 else:
                     tender_name = cols[2].text.strip()
-                    tender_link = ""
 
                 if not tender_name or len(tender_name) < 2: continue
                 if any(junk in tender_name for junk in JUNK_TITLES): continue
@@ -115,8 +218,8 @@ def search_pcc(driver, keyword, search_type):
                     "Org": org_name,
                     "Title": tender_name,
                     "Link": tender_link,
-                    "Deadline": cols[7].text.strip() if len(cols) > 7 else "",
-                    "Budget": cols[8].text.strip() if len(cols) > 8 else "",
+                    "Deadline": deadline,
+                    "Budget": budget,
                     "Tags": f"{('機關' if search_type=='org' else '標案')}-{keyword}",
                     "Source": "政府採購網"
                 })
@@ -150,35 +253,45 @@ def upload_to_gsheet(df):
     return 0
 
 def main():
-    print("🚀 啟動爬蟲 (V23.0 錯誤回報版)...")
+    print("🚀 啟動爬蟲 (V28.0 全能合體版)...")
+    
     try:
+        # 1. 載入關鍵字 (V26 功能)
+        keywords, org_keywords = load_keywords_from_sheet()
+        
         driver = init_driver()
         all_data = []
         
-        for org in ORG_KEYWORDS:
-            all_data.extend(search_pcc(driver, org, "org"))
-            time.sleep(1)
+        try:
+            for org in org_keywords:
+                all_data.extend(search_pcc(driver, org, "org"))
+                time.sleep(1)
 
-        for kw in KEYWORDS:
-            all_data.extend(search_pcc(driver, kw, "name"))
-            time.sleep(1)
-            
-        driver.quit()
+            for kw in keywords:
+                all_data.extend(search_pcc(driver, kw, "name"))
+                time.sleep(1)
+        finally:
+            if driver: driver.quit()
         
         msg = "今日無新資料"
         if all_data:
             df = pd.DataFrame(all_data)
             df.drop_duplicates(subset=['Link'], keep='first', inplace=True)
             count = upload_to_gsheet(df)
-            msg = f"成功執行，新增 {count} 筆資料 (共抓取 {len(df)} 筆)"
+            msg = f"成功執行，新增 {count} 筆資料"
+            print(msg)
+            
+        # 2. 自動封存 (V26 功能)
+        archive_old_records()
         
-        # ✅ 成功：寫入 Success 日誌
+        # 3. 寫入日誌 (V27 功能)
         log_to_sheet("SUCCESS", msg)
 
     except Exception as e:
-        # ❌ 失敗：寫入 Error 日誌 (包含詳細錯誤原因)
         error_msg = f"程式崩潰: {str(e)}\n{traceback.format_exc()}"
+        print(error_msg)
         log_to_sheet("ERROR", error_msg)
+        send_alert(error_msg)
         sys.exit(1)
 
 if __name__ == "__main__":
