@@ -16,11 +16,18 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
-# --- 【切換開關】 (V23.1 功能回歸) ---
-# ★ False = 本機看畫面 (除錯用)
-# ★ True  = 雲端背景執行 (上傳 GitHub 前請改回 True)
-HEADLESS_MODE = true
-
+def init_driver():
+    """初始化瀏覽器"""
+    chrome_options = Options()
+    # ⚠️ 雲端執行 (GitHub Actions) 必開無頭模式
+    chrome_options.add_argument("--headless") 
+    
+    chrome_options.add_argument("--window-size=1920,1080")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36")
+    
 # --- 設定區 ---
 # 錯誤報警設定 (Discord, 可留空)
 DISCORD_WEBHOOK_URL = "" 
@@ -296,4 +303,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
