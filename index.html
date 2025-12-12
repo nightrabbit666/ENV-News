@@ -165,6 +165,7 @@
                 
                 renderList(filterData(allData, true, keyword), 'container-today', false);
                 renderList(filterData(allData, false, keyword), 'container-history', true);
+                renderList(filterData(allData, 'expired', keyword), 'container-expired', true);
             });
         });
 
@@ -212,6 +213,7 @@
                     // 初始渲染
                     renderList(filterData(allData, true, ''), 'container-today', false);
                     renderList(filterData(allData, false, ''), 'container-history', true);
+                    renderList(filterData(allData, 'expired', ''), 'container-expired', true);
                 },
                 error: function(err) {
                     document.getElementById('container-today').innerHTML = '<div class="text-danger text-center py-5"><i class="fas fa-times-circle fa-2x mb-3"></i><br>資料讀取失敗，請檢查 Google Sheet 連結</div>';
@@ -251,24 +253,55 @@
             if(btnElement) btnElement.classList.add('active');
         }
 
-        // 資料篩選邏輯
-        function filterData(data, isToday, keyword) {
-            return data.filter(item => {
-                const itemDate = item.Date || "";
-                const matchDate = itemDate.includes(todayStr); 
-                
-                // 分頁過濾
-                if (isToday && !matchDate) return false; 
-                if (!isToday && matchDate) return false; 
+// 新版篩選邏輯 (Python 抓下來的資料在這裡分類)
+function filterData(data, type, keyword) {
+    const now = new Date();
+    // 把時間歸零，只比對日期 (避免今天截標的被算成過期)
+    now.setHours(0,0,0,0);
 
-                // 關鍵字過濾 (全欄位搜尋)
-                if (keyword) {
-                    const searchStr = (item.Title + item.Tags + item.Org + item.Source + item.Deadline).toLowerCase();
-                    if (!searchStr.includes(keyword.toLowerCase())) return false;
+    return data.filter(item => {
+        const itemDate = item.Date || "";
+        const matchDate = itemDate.includes(todayStr); // 是否今天公告
+        
+        // --- 判斷是否過期 ---
+        let isExpired = false;
+        if (item.Deadline) {
+            // 解析 "114/12/15" 這種格式
+            const parts = item.Deadline.split('/');
+            if (parts.length === 3) {
+                // 民國轉西元: 114 + 1911 = 2025
+                const deadDate = new Date(parseInt(parts[0]) + 1911, parseInt(parts[1]) - 1, parseInt(parts[2]));
+                
+                // 如果 截止日 < 今天，就是過期
+                if (deadDate < now) {
+                    isExpired = true;
                 }
-                return true;
-            });
+            }
         }
+
+        // --- 分類邏輯 ---
+        if (type === 'today') {
+            // 今日快訊：必須是今天公告
+            if (!matchDate) return false;
+        } 
+        else if (type === 'history') {
+            // 歷史查詢：非今天公告 且 還沒過期
+            if (matchDate || isExpired) return false;
+        } 
+        else if (type === 'expired') {
+            // 已截標：只要過期都算 (不管哪天公告)
+            if (!isExpired) return false;
+        }
+
+        // --- 關鍵字搜尋 (所有分頁通用) ---
+        if (keyword) {
+            const searchStr = (item.Title + item.Tags + item.Org + item.Source + item.Deadline).toLowerCase();
+            if (!searchStr.includes(keyword.toLowerCase())) return false;
+        }
+        
+        return true;
+    });
+}
 
         // 渲染列表 (HTML 產生器)
         function renderList(data, containerId, groupByDate) {
@@ -336,6 +369,7 @@
     </script>
 </body>
 </html>
+
 
 
 
