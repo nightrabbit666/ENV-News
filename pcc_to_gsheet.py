@@ -64,7 +64,7 @@ def log_to_sheet(status, message):
         print(f"❌ 日誌寫入失敗: {e}")
 
 def send_alert(message):
-    def send_google_chat(new_data_count, df_new):
+   def send_google_chat(new_data_count, df_new):
     """發送 Google Chat 通知 (V31.0 新增)"""
     if not GOOGLE_CHAT_WEBHOOK: return
 
@@ -352,6 +352,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
