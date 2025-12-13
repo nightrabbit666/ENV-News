@@ -72,34 +72,41 @@ def load_keywords_from_sheet():
     except:
         return KEYWORDS, ORG_KEYWORDS
 
-# --- Google Chat 推播 ---
+# --- Google Chat 推播 (V31.2 修改版) ---
 def send_google_chat(new_data_count, df_new):
-    """發送 Google Chat 通知"""
+    """發送 Google Chat 通知 (必定發送)"""
     if not GOOGLE_CHAT_WEBHOOK: return
 
     print("📲 準備發送 Google Chat 通知...")
     today = datetime.now().strftime("%Y/%m/%d")
     
     text = f"🔔 *【標案戰情快訊】 {today}*\n"
-    text += f"發現 {new_data_count} 筆新商機：\n"
-    text += "━━━━━━━━━━━━━━\n"
+    
+    if new_data_count == 0:
+        # 若無資料，顯示這段
+        text += "☕ 今日無新資料 (或皆已建檔)\n"
+        text += "━━━━━━━━━━━━━━\n"
+    else:
+        # 若有資料，顯示列表
+        text += f"發現 {new_data_count} 筆新商機：\n"
+        text += "━━━━━━━━━━━━━━\n"
 
-    count = 0
-    for index, row in df_new.iterrows():
-        count += 1
-        if count > 15:
-            text += f"\n...(還有 {new_data_count - 15} 筆，請至儀表板查看)"
-            break
-        
-        title = str(row['Title'])
-        if len(title) > 30: title = title[:30] + "..."
-        
-        text += f"{count}. [{row['Org']}] {row['Org']}\n"
-        text += f"   📝 {title}\n"
-        if row['Budget']:
-            text += f"   💰 {row['Budget']}\n"
-        text += f"   ⏳ 截止: {row['Deadline']}\n"
-        text += f"   🔗 <{row['Link']}|點擊查看>\n\n"
+        count = 0
+        for index, row in df_new.iterrows():
+            count += 1
+            if count > 15:
+                text += f"\n...(還有 {new_data_count - 15} 筆，請至儀表板查看)"
+                break
+            
+            title = str(row['Title'])
+            if len(title) > 30: title = title[:30] + "..."
+            
+            text += f"{count}. [{row['Org']}] {row['Org']}\n"
+            text += f"   📝 {title}\n"
+            if row['Budget']:
+                text += f"   💰 {row['Budget']}\n"
+            text += f"   ⏳ 截止: {row['Deadline']}\n"
+            text += f"   🔗 <{row['Link']}|點擊查看>\n\n"
 
     text += "━━━━━━━━━━━━━━\n"
     text += f"📊 <{DASHBOARD_URL}|查看完整戰情儀表板>"
@@ -217,14 +224,13 @@ def upload_to_gsheet(df):
     return 0, pd.DataFrame()
 
 def main():
-    print("🚀 啟動爬蟲 (V31.1 Google Chat 純淨版)...")
+    print("🚀 啟動爬蟲 (V31.2 Google Chat 必定通知版)...")
     
     try:
         keywords, org_keywords = load_keywords_from_sheet()
         driver = init_driver()
         all_data = []
         
-        # 1. 搜尋正式公告 (僅保留此項)
         print("\n--- 搜尋正式公告 ---")
         for org in org_keywords:
             all_data.extend(search_tender(driver, org, "org"))
@@ -236,6 +242,9 @@ def main():
         driver.quit()
         
         msg = "今日無新情報"
+        count = 0
+        new_df = pd.DataFrame()
+
         if all_data:
             df = pd.DataFrame(all_data)
             df.drop_duplicates(subset=['Link'], keep='first', inplace=True)
@@ -245,12 +254,15 @@ def main():
             
             if count > 0:
                 msg = f"成功執行，發現 {count} 筆新情報"
-                # 發送 Google Chat
-                send_google_chat(count, new_df)
             else:
                 msg = "資料已存在 (無新增)"
-            print(msg)
+        else:
+            msg = "搜尋無結果"
         
+        # ★ 移到 if 外面：無論 count 是多少，都發送通知
+        send_google_chat(count, new_df)
+        
+        print(msg)
         log_to_sheet("SUCCESS", msg)
 
     except Exception as e:
@@ -258,7 +270,6 @@ def main():
         print(error_msg)
         log_to_sheet("ERROR", error_msg)
         
-        # 錯誤通知
         if GOOGLE_CHAT_WEBHOOK:
             try:
                 requests.post(GOOGLE_CHAT_WEBHOOK, json={"text": f"🚨 **爬蟲發生錯誤** 🚨\n{str(e)}"})
