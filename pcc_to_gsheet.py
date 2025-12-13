@@ -22,8 +22,10 @@ from webdriver_manager.chrome import ChromeDriverManager
 HEADLESS_MODE = True
     
 # --- 設定區 ---
-# 錯誤報警設定 (Discord, 可留空)
-DISCORD_WEBHOOK_URL = "" 
+# Google Chat 設定
+# 如果是在本機測試，引號內直接貼上網址
+# 如果是上傳 GitHub，建議寫 os.environ.get('GOOGLE_CHAT_WEBHOOK')
+GOOGLE_CHAT_WEBHOOK = "https://chat.googleapis.com/v1/spaces/AAQAbfa7gJQ/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=N4OegGZLJ2y1ANxt41jIFf57RaGV4TI3Vw_GyHzdzeU"
 
 # 預設關鍵字
 DEFAULT_KEYWORDS = ["資源回收", "分選", "細分選場", "細分選廠", "細分類", "廢棄物"]
@@ -62,14 +64,49 @@ def log_to_sheet(status, message):
         print(f"❌ 日誌寫入失敗: {e}")
 
 def send_alert(message):
-    """發送 Discord 警報"""
-    if "discord.com" in DISCORD_WEBHOOK_URL:
-        try:
-            requests.post(DISCORD_WEBHOOK_URL, json={"content": f"🚨 爬蟲異常: {message}"})
-        except:
-            pass
+    def send_google_chat(new_data_count, df_new):
+    """發送 Google Chat 通知 (V31.0 新增)"""
+    if not GOOGLE_CHAT_WEBHOOK: return
 
-def load_keywords_from_sheet():
+    print("📲 準備發送 Google Chat 通知...")
+    today = datetime.now().strftime("%Y/%m/%d")
+    
+    # 1. 標題
+    text = f"🔔 *【標案戰情快訊】 {today}*\n"
+    text += f"發現 {new_data_count} 筆新資料：\n"
+    text += "━━━━━━━━━━━━━━\n"
+
+    # 2. 列表內容 (只列出前 10 筆以免訊息太長)
+    count = 0
+    for index, row in df_new.iterrows():
+        count += 1
+        if count > 10:
+            text += f"\n...(還有 {new_data_count - 10} 筆，請至儀表板查看)"
+            break
+        
+        # 簡單排版：[機關] 標題
+        title = row['Title'][:30] + "..." if len(row['Title']) > 30 else row['Title']
+        text += f"{count}. [{row['Org']}] {title}\n"
+        text += f"   💰 {row['Budget']} | ⏳ {row['Deadline']}\n"
+        text += f"   🔗 <{row['Link']}|點擊查看>\n\n"
+
+    # 3. 結尾
+    text += "━━━━━━━━━━━━━━\n"
+    # 這裡記得換成您的儀表板網址
+    text += f"📊 <https://nightrabbit666.github.io/ENV-News/index.html|查看完整戰情儀表板>"
+
+    # 4. 發送請求
+    try:
+        response = requests.post(
+            GOOGLE_CHAT_WEBHOOK, 
+            json={"text": text}
+        )
+        if response.status_code == 200:
+            print("✅ Google Chat 發送成功！")
+        else:
+            print(f"❌ Google Chat 發送失敗: {response.text}")
+    except Exception as e:
+        print(f"❌ Google Chat 連線錯誤: {e}")
     """讀取雲端關鍵字 (V26 功能)"""
     try:
         client = get_google_client()
@@ -238,6 +275,8 @@ def upload_to_gsheet(df):
     existing_links = set(str(row['Link']) for row in existing_data if 'Link' in row)
     
     new_rows = []
+    new_data_for_notify = [] # ★ 新增這個變數用來存給機器人的資料
+
     for index, row in df.iterrows():
         if str(row['Link']) not in existing_links:
             row_data = [
@@ -245,13 +284,17 @@ def upload_to_gsheet(df):
                 row['Deadline'], row['Budget'], row['Tags'], row['Source']
             ]
             new_rows.append(row_data)
+            new_data_for_notify.append(row) # ★ 收集新資料
             existing_links.add(str(row['Link']))
     
     if new_rows:
         sheet.append_rows(new_rows)
-        return len(new_rows)
-    return 0
-
+        # ★ 修改這裡：多回傳一個 pd.DataFrame(new_data_for_notify)
+        return len(new_rows), pd.DataFrame(new_data_for_notify)
+    
+    # ★ 修改這裡：沒資料時回傳 0 和 空DataFrame
+    return 0, pd.DataFrame()
+    
 def main():
     print("🚀 啟動爬蟲 (V28.0 全能合體版)...")
     
@@ -273,12 +316,21 @@ def main():
         finally:
             if driver: driver.quit()
         
-        msg = "今日無新資料"
+       msg = "今日無新資料"
         if all_data:
             df = pd.DataFrame(all_data)
             df.drop_duplicates(subset=['Link'], keep='first', inplace=True)
-            count = upload_to_gsheet(df)
-            msg = f"成功執行，新增 {count} 筆資料"
+            
+            # 1. 接收兩個回傳值 (數量, 新資料表)
+            count, new_df = upload_to_gsheet(df)
+            
+            if count > 0:
+                msg = f"成功執行，新增 {count} 筆資料"
+                # 2. 呼叫 Google Chat 推播
+                send_google_chat(count, new_df)
+            else:
+                msg = "資料已存在 (無新增)"
+            
             print(msg)
             
         # 2. 自動封存 (V26 功能)
@@ -287,15 +339,20 @@ def main():
         # 3. 寫入日誌 (V27 功能)
         log_to_sheet("SUCCESS", msg)
 
-    except Exception as e:
+   except Exception as e:
         error_msg = f"程式崩潰: {str(e)}\n{traceback.format_exc()}"
         print(error_msg)
         log_to_sheet("ERROR", error_msg)
-        send_alert(error_msg)
+        
+        # 改用 Google Chat 發送錯誤通知
+        if GOOGLE_CHAT_WEBHOOK:
+            requests.post(GOOGLE_CHAT_WEBHOOK, json={"text": f"🚨 **爬蟲發生錯誤** 🚨\n{str(e)}"})
+            
         sys.exit(1)
 
 if __name__ == "__main__":
     main()
+
 
 
 
