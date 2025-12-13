@@ -6,6 +6,7 @@
     <title>政府招標監控儀表板</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     <style>
         body { background-color: #f4f6f9; font-family: 'Segoe UI', sans-serif; padding-bottom: 50px;}
@@ -21,56 +22,35 @@
         }
 
         /* 系統狀態條 (置頂) */
-        #status-bar { 
-            display: none; 
-            padding: 8px 20px; 
-            font-size: 0.9rem; 
-            text-align: center; 
-            color: white;
-            font-weight: bold;
-        }
-        .status-error { background-color: #dc3545; } /* 紅色警報 */
+        #status-bar { display: none; padding: 8px 20px; font-size: 0.9rem; text-align: center; color: white; font-weight: bold;}
+        .status-error { background-color: #dc3545; } 
         .status-ok { position: absolute; top: 10px; right: 10px; font-size: 0.8rem; opacity: 0.8; }
 
         /* 卡片設計 */
         .card-custom { 
-            border: none; 
-            border-radius: 12px; 
-            box-shadow: 0 2px 8px rgba(0,0,0,0.03); 
-            background: white; 
-            margin-bottom: 15px; 
-            transition: transform 0.2s; 
-            border-left: 5px solid transparent;
-            padding: 20px;
+            border: none; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); 
+            background: white; margin-bottom: 15px; transition: transform 0.2s; 
+            border-left: 5px solid transparent; padding: 20px;
         }
         .card-custom:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,0.08); }
+        .source-pis { border-left-color: #ffc107; } /* 黃 */
+        .source-env { border-left-color: #28a745; } /* 綠 */
         
-        /* 來源分類標示 */
-        .source-pis { border-left-color: #ffc107; } /* 政府採購網 (黃) */
-        .source-env { border-left-color: #28a745; } /* 環境部 (綠) */
-        
-        /* 標籤 Badge */
         .badge-tag { font-size: 0.85rem; padding: 5px 10px; border-radius: 6px; font-weight: normal;}
         .bg-pis { background-color: #fff3cd; color: #856404; }
         .bg-env { background-color: #d4edda; color: #155724; }
         
-        /* 標題連結 */
         .news-link { text-decoration: none; color: #2c3e50; font-weight: 700; font-size: 1.15rem; display: block; margin-bottom: 8px; line-height: 1.4;}
         .news-link:hover { color: #0062E6; text-decoration: underline;}
         
-        /* 搜尋框 */
         .search-bar { border-radius: 50px; padding: 12px 25px; border: 1px solid #ced4da; width: 100%; max-width: 600px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        
-        /* 分頁籤 (Tabs) */
         .nav-pills .nav-link { border-radius: 50px; padding: 10px 25px; font-weight: 600; color: #6c757d; margin: 0 5px;}
         .nav-pills .nav-link.active { background-color: #0062E6; color: white; box-shadow: 0 4px 10px rgba(0, 98, 230, 0.3); }
         
-        /* 日期分隔線 */
         .date-separator { display: flex; align-items: center; margin: 30px 0 20px 0; color: #adb5bd; font-size: 0.9rem; font-weight: bold; }
         .date-separator::before, .date-separator::after { content: ""; flex: 1; border-bottom: 1px solid #dee2e6; }
         .date-text { background-color: #e9ecef; color: #495057; padding: 5px 15px; border-radius: 20px; }
 
-        /* 詳細資訊列 (預算/截止日) */
         .info-row { font-size: 0.9rem; color: #666; display: flex; flex-wrap: wrap; gap: 15px; margin-top: 10px;}
         .info-item { display: flex; align-items: center; background: #f8f9fa; padding: 4px 10px; border-radius: 20px;}
         .info-item i { margin-right: 6px; color: #adb5bd; }
@@ -82,6 +62,16 @@
         .keyword-btn { font-size: 0.85rem; margin: 3px; border: 1px solid #dee2e6; background: white; color: #6c757d;}
         .keyword-btn:hover { background: #e9ecef; color: #495057; }
         .keyword-btn.active { background: #6c757d; color: white; border-color: #6c757d; }
+
+        /* ★ 新增：分析按鈕樣式 */
+        .btn-analyze {
+            background-color: #17a2b8; color: white; font-size: 0.8rem; padding: 2px 10px;
+            border-radius: 20px; border: none; cursor: pointer; transition: all 0.3s;
+            display: inline-flex; align-items: center;
+        }
+        .btn-analyze:hover { background-color: #138496; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .btn-analyze:disabled { background-color: #6c757d; cursor: not-allowed; opacity: 0.7; }
+        .spinner-border-sm { width: 0.8rem; height: 0.8rem; border-width: 0.15em; margin-right: 5px; }
     </style>
 </head>
 <body>
@@ -90,13 +80,11 @@
 
     <div class="header text-center">
         <div id="last-update" class="status-ok" style="display:none"></div>
-        
         <h1 class="fw-bold pt-2"><i class="fas fa-search-dollar me-2"></i>標案與新聞戰情室</h1>
         <p class="opacity-75 mb-0">即時監控：資源循環署 / 環境管理署 / 政府採購網</p>
     </div>
 
     <div class="container" style="max-width: 900px;">
-        
         <div class="mb-4 text-center">
             <h6 class="text-muted small mb-2">📊 關鍵字快篩 (點擊過濾)</h6>
             <div id="keyword-badges" class="d-flex flex-wrap justify-content-center"></div>
@@ -132,35 +120,27 @@
         // ⚠️ 設定區：請填入您的 Google Sheets CSV 連結
         // ==========================================
         
-        // 1. 新聞資料 (news 工作表)
         const sheetCsvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSL9csppWjrqt8UOwwOwDxI4WON1aujg78zBush52aLIUeFubdpp9Au93c6cgf_qDLuRRX2NP0OvTkJ/pub?gid=0&single=true&output=csv';
-        
-        // 2. 系統日誌 (logs 工作表)
         const logCsvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSL9csppWjrqt8UOwwOwDxI4WON1aujg78zBush52aLIUeFubdpp9Au93c6cgf_qDLuRRX2NP0OvTkJ/pub?gid=469067754&single=true&output=csv'; 
+        
+        // ★ 請在此填入 History 分頁的 CSV 連結 (gid 會不一樣)
+        const historyCsvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSL9csppWjrqt8UOwwOwDxI4WON1aujg78zBush52aLIUeFubdpp9Au93c6cgf_qDLuRRX2NP0OvTkJ/pub?gid=175963084&single=true&output=csv'; 
 
         // ==========================================
 
         let allData = [];
+        let historyDataCache = null; // 快取歷史資料
         let todayStr = "";
 
-        // 初始化
         document.addEventListener('DOMContentLoaded', function() {
-            // 計算今天的民國日期 (格式: 114/12/06)
             const dateObj = new Date();
-            const year = dateObj.getFullYear() - 1911;
-            const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-            const day = String(dateObj.getDate()).padStart(2, '0');
-            todayStr = `${year}/${month}/${day}`;
+            todayStr = `${dateObj.getFullYear() - 1911}/${String(dateObj.getMonth() + 1).padStart(2, '0')}/${String(dateObj.getDate()).padStart(2, '0')}`;
             
-            console.log("今日日期:", todayStr);
-
-            fetchData();      // 讀取主要資料
-            checkSystemStatus(); // 讀取系統日誌
+            fetchData();
+            checkSystemStatus();
             
-            // 搜尋監聽
             document.getElementById('searchInput').addEventListener('input', function(e) {
                 const keyword = e.target.value;
-                // 清除關鍵字按鈕的 active 狀態
                 document.querySelectorAll('.keyword-btn').forEach(btn => btn.classList.remove('active'));
                 
                 renderList(filterData(allData, true, keyword), 'container-today', false);
@@ -169,25 +149,36 @@
             });
         });
 
-        // 讀取日誌並顯示狀態
+        // 讀取主資料
+        function fetchData() {
+            Papa.parse(sheetCsvUrl, {
+                download: true, header: true,
+                complete: function(results) {
+                    allData = results.data.filter(item => item.Title && item.Link).reverse();
+                    updateStats();
+                    renderKeywords();
+                    renderList(filterData(allData, true, ''), 'container-today', false);
+                    renderList(filterData(allData, false, ''), 'container-history', true);
+                    renderList(filterData(allData, 'expired', ''), 'container-expired', true);
+                }
+            });
+        }
+
+        // 讀取日誌
         function checkSystemStatus() {
             Papa.parse(logCsvUrl, {
-                download: true,
-                header: true,
+                download: true, header: true,
                 complete: function(results) {
                     const logs = results.data.filter(r => r.Time);
                     if (logs.length > 0) {
-                        const lastLog = logs[logs.length - 1]; // 取最新一筆
+                        const lastLog = logs[logs.length - 1];
                         const statusBar = document.getElementById('status-bar');
                         const lastUpdate = document.getElementById('last-update');
-
                         if (lastLog.Status === 'ERROR') {
-                            // 顯示紅色橫幅
                             statusBar.className = 'status-error';
-                            statusBar.innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i> 系統異常警告：${lastLog.Message} (${lastLog.Time})`;
+                            statusBar.innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i> 系統異常警告：${lastLog.Message}`;
                             statusBar.style.display = 'block';
                         } else {
-                            // 顯示右上角綠色狀態
                             lastUpdate.innerHTML = `<span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>系統正常</span> <span class="small ms-1">更新: ${lastLog.Time}</span>`;
                             lastUpdate.style.display = 'block';
                         }
@@ -196,118 +187,119 @@
             });
         }
 
-        // 讀取主資料
-        function fetchData() {
-            Papa.parse(sheetCsvUrl, {
-                download: true,
-                header: true,
-                complete: function(results) {
-                    // 過濾無效資料
-                    allData = results.data.filter(item => item.Title && item.Link);
-                    // 倒序排列 (最新的在最上面)
-                    allData.reverse();
-                    
-                    updateStats();
-                    renderKeywords();
-                    
-                    // 初始渲染
-                    renderList(filterData(allData, true, ''), 'container-today', false);
-                    renderList(filterData(allData, false, ''), 'container-history', true);
-                    renderList(filterData(allData, 'expired', ''), 'container-expired', true);
-                },
-                error: function(err) {
-                    document.getElementById('container-today').innerHTML = '<div class="text-danger text-center py-5"><i class="fas fa-times-circle fa-2x mb-3"></i><br>資料讀取失敗，請檢查 Google Sheet 連結</div>';
+        // ★ 新增：觸發分析 (Lazy Loading)
+        async function startAnalysis(btnId, title, org) {
+            const btn = document.getElementById(btnId);
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 搜尋中...`;
+
+            try {
+                // 1. 如果還沒下載過歷史資料，現在下載
+                if (!historyDataCache) {
+                    await new Promise((resolve, reject) => {
+                        Papa.parse(historyCsvUrl, {
+                            download: true, header: true,
+                            complete: function(results) {
+                                historyDataCache = results.data;
+                                console.log("歷史資料庫下載完成", historyDataCache.length);
+                                resolve();
+                            },
+                            error: function(err) { reject(err); }
+                        });
+                    });
                 }
-            });
-        }
 
-        // 產生關鍵字按鈕
-        function renderKeywords() {
-            const keywordMap = {};
-            allData.forEach(item => {
-                if (item.Tags) {
-                    // 解析 Tags: "標案-資源回收" -> 取 "資源回收"
-                    let parts = item.Tags.split('-');
-                    let kw = parts.length > 1 ? parts[1] : item.Tags;
-                    keywordMap[kw] = (keywordMap[kw] || 0) + 1;
-                }
-            });
-            
-            const container = document.getElementById('keyword-badges');
-            let html = '';
-            // 排序：數量多的在前
-            Object.entries(keywordMap).sort((a, b) => b[1] - a[1]).forEach(([key, count]) => {
-                html += `<button class="btn btn-sm rounded-pill keyword-btn" onclick="setSearch('${key}', this)">${key} <span class="badge bg-secondary text-white ms-1" style="font-size:0.7rem">${count}</span></button>`;
-            });
-            container.innerHTML = html;
-        }
+                // 2. 模擬稍微停頓 (提升體驗)
+                await new Promise(r => setTimeout(r, 600));
 
-        // 點擊關鍵字搜尋
-        function setSearch(keyword, btnElement) {
-            const searchInput = document.getElementById('searchInput');
-            searchInput.value = keyword;
-            searchInput.dispatchEvent(new Event('input')); // 觸發搜尋
-            
-            // 更新按鈕樣式
-            document.querySelectorAll('.keyword-btn').forEach(btn => btn.classList.remove('active'));
-            if(btnElement) btnElement.classList.add('active');
-        }
-
-// 新版篩選邏輯 (Python 抓下來的資料在這裡分類)
-function filterData(data, type, keyword) {
-    const now = new Date();
-    // 把時間歸零，只比對日期 (避免今天截標的被算成過期)
-    now.setHours(0,0,0,0);
-
-    return data.filter(item => {
-        const itemDate = item.Date || "";
-        const matchDate = itemDate.includes(todayStr); // 是否今天公告
-        
-        // --- 判斷是否過期 ---
-        let isExpired = false;
-        if (item.Deadline) {
-            // 解析 "114/12/15" 這種格式
-            const parts = item.Deadline.split('/');
-            if (parts.length === 3) {
-                // 民國轉西元: 114 + 1911 = 2025
-                const deadDate = new Date(parseInt(parts[0]) + 1911, parseInt(parts[1]) - 1, parseInt(parts[2]));
+                // 3. 執行比對分析
+                const result = performAnalysis(title, org);
                 
-                // 如果 截止日 < 今天，就是過期
-                if (deadDate < now) {
-                    isExpired = true;
-                }
+                // 4. 顯示結果
+                showResultModal(result, title);
+
+            } catch (error) {
+                console.error(error);
+                Swal.fire({ icon: 'error', title: '讀取失敗', text: '請檢查 History CSV 連結是否正確' });
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
             }
         }
 
-        // --- 分類邏輯 ---
-        if (type === 'today') {
-            // 今日快訊：必須是今天公告
-            if (!matchDate) return false;
-        } 
-        else if (type === 'history') {
-            // 歷史查詢：非今天公告 且 還沒過期
-            if (matchDate || isExpired) return false;
-        } 
-        else if (type === 'expired') {
-            // 已截標：只要過期都算 (不管哪天公告)
-            if (!isExpired) return false;
+        // ★ 新增：分析運算邏輯
+        function performAnalysis(currentTitle, currentOrg) {
+            // 清洗標題：移除年份 (如 114, 113) 與雜字
+            const coreTitle = currentTitle.replace(/\d{3}年度?|\d{4}年?/g, "").replace(/公告|招標|案|計畫|勞務|採購/g, "").trim();
+            
+            // 篩選：機關相同 且 標題包含核心關鍵字
+            const matches = historyDataCache.filter(row => {
+                const rowOrg = row['Org'] || row['機關名稱']; // 相容不同欄位名
+                const rowTitle = row['Title'] || row['標案名稱'];
+                return rowOrg === currentOrg && rowTitle && rowTitle.includes(coreTitle);
+            });
+
+            if (matches.length === 0) return null;
+
+            // 排序：日期新的在前
+            matches.sort((a, b) => (b.Date || "").localeCompare(a.Date || ""));
+            const lastCase = matches[0];
+            
+            // 嘗試統計得標者 (若有 Winner 欄位)
+            let topWinner = "資料庫無紀錄";
+            const winners = matches.map(m => m.Winner || m.得標廠商).filter(w => w);
+            if(winners.length > 0) {
+                const counts = {};
+                winners.forEach(w => counts[w] = (counts[w] || 0) + 1);
+                topWinner = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b);
+            }
+
+            return {
+                count: matches.length,
+                lastDate: lastCase.Date,
+                lastTitle: lastCase.Title || lastCase.標案名稱,
+                lastAmount: lastCase.Budget || lastCase.預算金額,
+                lastWinner: lastCase.Winner || lastCase.得標廠商 || "無資料",
+                dominantWinner: topWinner
+            };
         }
 
-        // --- 關鍵字搜尋 (所有分頁通用) ---
-        if (keyword) {
-            const searchStr = (item.Title + item.Tags + item.Org + item.Source + item.Deadline).toLowerCase();
-            if (!searchStr.includes(keyword.toLowerCase())) return false;
+        // ★ 新增：顯示結果視窗
+        function showResultModal(data, currentTitle) {
+            if (!data) {
+                Swal.fire({
+                    icon: 'info', title: '查無歷史關聯',
+                    text: '這似乎是一個全新的案件，過去資料庫中沒有相似紀錄。',
+                    confirmButtonColor: '#3085d6',
+                });
+                return;
+            }
+            Swal.fire({
+                title: '📊 戰情分析報告',
+                html: `
+                    <div style="text-align: left; font-size: 0.95rem;">
+                        <p class="mb-2"><strong>🎯 目前標案：</strong><br>${currentTitle}</p>
+                        <hr>
+                        <p class="mb-1"><strong>🔎 歷史關聯：</strong> 發現 <span class="text-danger fw-bold">${data.count}</span> 筆相似案件</p>
+                        <p class="mb-1"><strong>📅 最近一次：</strong> ${data.lastDate}</p>
+                        <p class="mb-1"><strong>📝 歷史案名：</strong> ${data.lastTitle}</p>
+                        <p class="mb-1"><strong>💰 歷史金額：</strong> ${data.lastAmount}</p>
+                        <div class="mt-3 p-2 bg-light rounded border">
+                            <p class="mb-0"><strong>🏆 歷年霸主：</strong> <span class="text-primary fw-bold">${data.dominantWinner}</span></p>
+                            <small class="text-muted">(出現頻率最高的廠商)</small>
+                        </div>
+                    </div>
+                `,
+                icon: 'success',
+                confirmButtonText: '了解', confirmButtonColor: '#17a2b8'
+            });
         }
-        
-        return true;
-    });
-}
 
         // 渲染列表 (HTML 產生器)
         function renderList(data, containerId, groupByDate) {
             const container = document.getElementById(containerId);
             container.innerHTML = '';
-
             if (data.length === 0) {
                 container.innerHTML = '<div class="empty-state"><i class="fas fa-folder-open fa-3x mb-3 opacity-25"></i><br>目前沒有資料</div>';
                 return;
@@ -316,36 +308,32 @@ function filterData(data, type, keyword) {
             let html = '';
             let lastDate = '';
 
-            data.forEach(item => {
-                // 日期分組 (僅歷史分頁)
+            data.forEach((item, index) => {
                 if (groupByDate && item.Date !== lastDate) {
                     html += `<div class="date-separator"><span class="date-text"><i class="far fa-calendar-alt me-2"></i>${item.Date}</span></div>`;
                     lastDate = item.Date;
                 }
 
-                // 判斷來源 (決定顏色)
                 const isPis = item.Source && item.Source.includes("採購");
                 const borderClass = isPis ? 'source-pis' : 'source-env';
                 const badgeClass = isPis ? 'bg-pis' : 'bg-env';
-                
-                // 欄位處理
-                const orgName = item.Org || item.Source; 
-                const budget = item.Budget ? `<span class="budget-text">$${item.Budget}</span>` : '';
-                const deadline = item.Deadline ? `<span class="deadline-text">截止: ${item.Deadline}</span>` : '';
+                const btnId = `analyze-${containerId}-${index}`; // 唯一ID
 
                 html += `
                     <div class="card-custom ${borderClass}">
                         <div class="d-flex justify-content-between align-items-start">
                             <div class="flex-grow-1">
                                 <div class="mb-2">
-                                    <span class="badge ${badgeClass} badge-tag text-dark">${orgName}</span>
+                                    <span class="badge ${badgeClass} badge-tag text-dark">${item.Org || item.Source}</span>
                                     <span class="badge bg-light text-secondary border badge-tag ms-1"><i class="fas fa-tag me-1"></i>${item.Tags || '一般'}</span>
+                                    <button id="${btnId}" class="btn-analyze ms-2" onclick="startAnalysis('${btnId}', '${item.Title}', '${item.Org}')">
+                                        <i class="fas fa-chart-line me-1"></i>戰情分析
+                                    </button>
                                 </div>
                                 <a href="${item.Link}" target="_blank" class="news-link">${item.Title}</a>
-                                
                                 <div class="info-row">
-                                    ${budget ? `<div class="info-item"><i class="fas fa-coins"></i>${budget}</div>` : ''}
-                                    ${deadline ? `<div class="info-item"><i class="fas fa-hourglass-half"></i>${deadline}</div>` : ''}
+                                    ${item.Budget ? `<div class="info-item"><i class="fas fa-coins"></i><span class="budget-text">$${item.Budget}</span></div>` : ''}
+                                    ${item.Deadline ? `<div class="info-item"><i class="fas fa-hourglass-half"></i><span class="deadline-text">截止: ${item.Deadline}</span></div>` : ''}
                                     ${!groupByDate ? `<div class="info-item"><i class="far fa-clock"></i>${item.Date}</div>` : ''}
                                 </div>
                             </div>
@@ -359,17 +347,59 @@ function filterData(data, type, keyword) {
             container.innerHTML = html;
         }
 
-        // 更新統計數據
+        // 其他基礎功能 (Filter, Stats, Keywords) 維持與原版邏輯一致，已整合在上方 fetchData 中
         function updateStats() {
             document.getElementById('totalCount').innerText = allData.length;
             const todayCount = allData.filter(item => item.Date && item.Date.includes(todayStr)).length;
             document.getElementById('todayCount').innerText = todayCount;
             document.getElementById('historyCount').innerText = allData.length - todayCount;
         }
+        function renderKeywords() {
+            const keywordMap = {};
+            allData.forEach(item => {
+                if (item.Tags) {
+                    let parts = item.Tags.split('-');
+                    let kw = parts.length > 1 ? parts[1] : item.Tags;
+                    keywordMap[kw] = (keywordMap[kw] || 0) + 1;
+                }
+            });
+            const container = document.getElementById('keyword-badges');
+            let html = '';
+            Object.entries(keywordMap).sort((a, b) => b[1] - a[1]).forEach(([key, count]) => {
+                html += `<button class="btn btn-sm rounded-pill keyword-btn" onclick="setSearch('${key}', this)">${key} <span class="badge bg-secondary text-white ms-1" style="font-size:0.7rem">${count}</span></button>`;
+            });
+            container.innerHTML = html;
+        }
+        function setSearch(keyword, btnElement) {
+            const searchInput = document.getElementById('searchInput');
+            searchInput.value = keyword;
+            searchInput.dispatchEvent(new Event('input'));
+            document.querySelectorAll('.keyword-btn').forEach(btn => btn.classList.remove('active'));
+            if(btnElement) btnElement.classList.add('active');
+        }
+        function filterData(data, type, keyword) {
+            const now = new Date(); now.setHours(0,0,0,0);
+            return data.filter(item => {
+                const itemDate = item.Date || "";
+                const matchDate = itemDate.includes(todayStr);
+                let isExpired = false;
+                if (item.Deadline) {
+                    const parts = item.Deadline.split('/');
+                    if (parts.length === 3) {
+                        const deadDate = new Date(parseInt(parts[0]) + 1911, parseInt(parts[1]) - 1, parseInt(parts[2]));
+                        if (deadDate < now) isExpired = true;
+                    }
+                }
+                if (type === 'today') { if (!matchDate) return false; } 
+                else if (type === 'history') { if (matchDate || isExpired) return false; } 
+                else if (type === 'expired') { if (!isExpired) return false; }
+                if (keyword) {
+                    const searchStr = (item.Title + item.Tags + item.Org + item.Source + item.Deadline).toLowerCase();
+                    if (!searchStr.includes(keyword.toLowerCase())) return false;
+                }
+                return true;
+            });
+        }
     </script>
 </body>
 </html>
-
-
-
-
