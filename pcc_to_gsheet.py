@@ -21,10 +21,10 @@ from webdriver_manager.chrome import ChromeDriverManager
 HEADLESS_MODE = True
 
 # --- 設定區 ---
-# Google Chat Webhook (請確認網址正確)
+# Google Chat Webhook
 GOOGLE_CHAT_WEBHOOK = "https://chat.googleapis.com/v1/spaces/AAQAbfa7gJQ/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=N4OegGZLJ2y1ANxt41jIFf57RaGV4TI3Vw_GyHzdzeU"
 
-# 預設關鍵字 (若 Google Sheet 讀取失敗時使用)
+# 預設關鍵字
 KEYWORDS = ["資源回收", "分選", "細分選場", "細分選廠", "細分類", "廢棄物"]
 ORG_KEYWORDS = ["資源循環署", "環境管理署"]
 
@@ -37,7 +37,6 @@ CONFIG_SHEET_NAME = 'Config'
 
 # 網址定義
 URL_BASIC = "https://web.pcc.gov.tw/prkms/tender/common/basic/indexTenderBasic"   # 正式公告
-URL_PREDICT = "https://web.pcc.gov.tw/prkms/tender/common/predict/indexTenderPredict" # 採購預告
 DASHBOARD_URL = "https://nightrabbit666.github.io/ENV-News/index.html"
 
 # --- 基礎建設函式 ---
@@ -64,7 +63,6 @@ def load_keywords_from_sheet():
         client = get_google_client()
         sheet = client.open_by_url(SHEET_URL).worksheet(CONFIG_SHEET_NAME)
         records = sheet.get_all_records()
-        # 讀取雲端設定，若無則使用預設
         kws = [r['Keyword'] for r in records if r['Type'] == '標案' and r['Keyword']]
         orgs = [r['Keyword'] for r in records if r['Type'] == '機關' and r['Keyword']]
         
@@ -74,7 +72,7 @@ def load_keywords_from_sheet():
     except:
         return KEYWORDS, ORG_KEYWORDS
 
-# --- Google Chat 推播 (獨立函式) ---
+# --- Google Chat 推播 ---
 def send_google_chat(new_data_count, df_new):
     """發送 Google Chat 通知"""
     if not GOOGLE_CHAT_WEBHOOK: return
@@ -83,7 +81,7 @@ def send_google_chat(new_data_count, df_new):
     today = datetime.now().strftime("%Y/%m/%d")
     
     text = f"🔔 *【標案戰情快訊】 {today}*\n"
-    text += f"發現 {new_data_count} 筆新商機 (含預告)：\n"
+    text += f"發現 {new_data_count} 筆新商機：\n"
     text += "━━━━━━━━━━━━━━\n"
 
     count = 0
@@ -93,22 +91,14 @@ def send_google_chat(new_data_count, df_new):
             text += f"\n...(還有 {new_data_count - 15} 筆，請至儀表板查看)"
             break
         
-        # 判斷標籤
-        source_tag = "🔮預告" if "預告" in str(row['Source']) else "📢公告"
-        
         title = str(row['Title'])
         if len(title) > 30: title = title[:30] + "..."
         
-        text += f"{count}. [{source_tag}] {row['Org']}\n"
+        text += f"{count}. [{row['Org']}] {row['Org']}\n"
         text += f"   📝 {title}\n"
         if row['Budget']:
             text += f"   💰 {row['Budget']}\n"
-        
-        # 預告顯示預計公告日，公告顯示截止日
-        date_label = "預計公告" if "預告" in str(row['Source']) else "截止"
-        date_val = row['Date'] if "預告" in str(row['Source']) else row['Deadline']
-        text += f"   🗓️ {date_label}: {date_val}\n"
-        
+        text += f"   ⏳ 截止: {row['Deadline']}\n"
         text += f"   🔗 <{row['Link']}|點擊查看>\n\n"
 
     text += "━━━━━━━━━━━━━━\n"
@@ -140,7 +130,7 @@ def init_driver():
     except Exception as e:
         raise Exception(f"瀏覽器啟動失敗: {e}")
 
-# 1. 正式公告爬蟲
+# 正式公告爬蟲
 def search_tender(driver, keyword, search_type):
     print(f"\n🔍 [公告] 搜尋 {search_type}：{keyword}")
     try:
@@ -192,75 +182,12 @@ def search_tender(driver, keyword, search_type):
                     "Deadline": cols[7].text.strip(),
                     "Budget": cols[8].text.strip(),
                     "Tags": f"公告-{keyword}",
-                    "Source": "政府採購網(公告)"
+                    "Source": "政府採購網"
                 })
             except: continue
         return results
     except Exception as e:
         print(f"   ❌ 公告搜尋錯誤: {e}")
-        return []
-
-# 2. 採購預告爬蟲 (新增功能)
-def search_forecast(driver, keyword, search_type):
-    print(f"\n🔮 [預告] 搜尋 {search_type}：{keyword}")
-    try:
-        driver.get(URL_PREDICT)
-        wait = WebDriverWait(driver, 15)
-
-        if search_type == "name":
-            input_box = wait.until(EC.visibility_of_element_located((By.NAME, "tenderName")))
-            driver.find_element(By.NAME, "orgName").clear()
-        else:
-            input_box = wait.until(EC.visibility_of_element_located((By.NAME, "orgName")))
-            driver.find_element(By.NAME, "tenderName").clear()
-            
-        input_box.clear()
-        input_box.send_keys(keyword)
-        input_box.send_keys(Keys.ENTER) # 預告頁面通常用 Enter
-        
-        try:
-            wait.until(EC.presence_of_element_located((By.CLASS_NAME, "tb_01")))
-            if "無符合條件資料" in driver.page_source: return []
-        except: return []
-
-        results = []
-        rows = driver.find_elements(By.CSS_SELECTOR, ".tb_01 tbody tr")
-        
-        for row in rows:
-            cols = row.find_elements(By.TAG_NAME, "td")
-            if len(cols) < 5: continue
-            try:
-                # 預告欄位假設: [1]機關 [2]案名(含連結) [3]預算 [4]預定公告日
-                org_name = cols[1].text.strip()
-                
-                name_col = cols[2]
-                tender_name = name_col.text.strip()
-                link = ""
-                links = name_col.find_elements(By.TAG_NAME, "a")
-                if links:
-                    link = links[0].get_attribute("href")
-                    tender_name = links[0].text.strip()
-                
-                budget = cols[3].text.strip()
-                est_date = cols[4].text.strip()
-
-                if not tender_name: continue
-
-                results.append({
-                    "Date": est_date, # 預定公告日
-                    "Org": org_name,
-                    "Title": tender_name,
-                    "Link": link,
-                    "Deadline": "預告",
-                    "Budget": budget,
-                    "Tags": f"預告-{keyword}",
-                    "Source": "政府採購網(預告)"
-                })
-            except: continue
-        
-        return results
-    except Exception as e:
-        print(f"   ❌ 預告搜尋錯誤: {e}")
         return []
 
 def upload_to_gsheet(df):
@@ -290,15 +217,15 @@ def upload_to_gsheet(df):
     return 0, pd.DataFrame()
 
 def main():
-    print("🚀 啟動爬蟲 (V31.0 Google Chat + 預告戰情版)...")
+    print("🚀 啟動爬蟲 (V31.1 Google Chat 純淨版)...")
     
     try:
         keywords, org_keywords = load_keywords_from_sheet()
         driver = init_driver()
         all_data = []
         
-        # 1. 搜尋正式公告
-        print("\n--- 1. 搜尋正式公告 ---")
+        # 1. 搜尋正式公告 (僅保留此項)
+        print("\n--- 搜尋正式公告 ---")
         for org in org_keywords:
             all_data.extend(search_tender(driver, org, "org"))
             time.sleep(1)
@@ -306,12 +233,6 @@ def main():
             all_data.extend(search_tender(driver, kw, "name"))
             time.sleep(1)
 
-        # 2. 搜尋採購預告
-        print("\n--- 2. 搜尋採購預告 ---")
-        for org in org_keywords:
-            all_data.extend(search_forecast(driver, org, "org"))
-            time.sleep(1)
-            
         driver.quit()
         
         msg = "今日無新情報"
