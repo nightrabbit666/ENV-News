@@ -295,6 +295,21 @@ def upload_to_gsheet(df):
     # ★ 修改這裡：沒資料時回傳 0 和 空DataFrame
     return 0, pd.DataFrame()
     
+def load_keywords_from_sheet():
+    """讀取雲端關鍵字 (補回遺失的函式)"""
+    try:
+        client = get_google_client()
+        sheet = client.open_by_url(SHEET_URL).worksheet(CONFIG_SHEET_NAME)
+        records = sheet.get_all_records()
+        keywords = [r['Keyword'] for r in records if r['Type'] == '標案' and r['Keyword']]
+        orgs = [r['Keyword'] for r in records if r['Type'] == '機關' and r['Keyword']]
+        
+        if not keywords: keywords = KEYWORDS
+        if not orgs: orgs = ORG_KEYWORDS
+        return keywords, orgs
+    except:
+        return KEYWORDS, ORG_KEYWORDS    
+
 def main():
     print("🚀 啟動爬蟲 (V31.0 Google Chat + 預告戰情版)...")
     
@@ -355,6 +370,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
