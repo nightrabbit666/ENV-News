@@ -296,62 +296,66 @@ def upload_to_gsheet(df):
     return 0, pd.DataFrame()
     
 def main():
-    print("🚀 啟動爬蟲 (V28.0 全能合體版)...")
+    print("🚀 啟動爬蟲 (V31.0 Google Chat + 預告戰情版)...")
     
     try:
-        # 1. 載入關鍵字 (V26 功能)
         keywords, org_keywords = load_keywords_from_sheet()
-        
         driver = init_driver()
         all_data = []
         
-        try:
-            for org in org_keywords:
-                all_data.extend(search_pcc(driver, org, "org"))
-                time.sleep(1)
+        # 1. 爬取「正式公告」
+        print("\n--- 1. 搜尋正式公告 ---")
+        for org in org_keywords:
+            all_data.extend(search_tender(driver, org, "org"))
+            time.sleep(1)
+        for kw in keywords:
+            all_data.extend(search_tender(driver, kw, "name"))
+            time.sleep(1)
 
-            for kw in keywords:
-                all_data.extend(search_pcc(driver, kw, "name"))
-                time.sleep(1)
-        finally:
-            if driver: driver.quit()
+        # 2. 爬取「採購預告」
+        print("\n--- 2. 搜尋採購預告 (Market Intelligence) ---")
+        for org in org_keywords:
+            all_data.extend(search_forecast(driver, org, "org"))
+            time.sleep(1)
+            
+        driver.quit()
         
-       msg = "今日無新資料"
+        msg = "今日無新情報"
         if all_data:
             df = pd.DataFrame(all_data)
             df.drop_duplicates(subset=['Link'], keep='first', inplace=True)
             
-            # 1. 接收兩個回傳值 (數量, 新資料表)
+            # 接收兩個回傳值 (數量, 新資料表)
             count, new_df = upload_to_gsheet(df)
             
             if count > 0:
-                msg = f"成功執行，新增 {count} 筆資料"
-                # 2. 呼叫 Google Chat 推播
+                msg = f"成功執行，發現 {count} 筆新情報 (含預告)"
+                # Google Chat 推播
                 send_google_chat(count, new_df)
             else:
                 msg = "資料已存在 (無新增)"
             
             print(msg)
-            
-        # 2. 自動封存 (V26 功能)
-        archive_old_records()
         
-        # 3. 寫入日誌 (V27 功能)
         log_to_sheet("SUCCESS", msg)
 
-   except Exception as e:
+    except Exception as e:
         error_msg = f"程式崩潰: {str(e)}\n{traceback.format_exc()}"
         print(error_msg)
         log_to_sheet("ERROR", error_msg)
         
-        # 改用 Google Chat 發送錯誤通知
+        # 錯誤通知
         if GOOGLE_CHAT_WEBHOOK:
-            requests.post(GOOGLE_CHAT_WEBHOOK, json={"text": f"🚨 **爬蟲發生錯誤** 🚨\n{str(e)}"})
+            try:
+                requests.post(GOOGLE_CHAT_WEBHOOK, json={"text": f"🚨 **爬蟲發生錯誤** 🚨\n{str(e)}"})
+            except:
+                pass
             
         sys.exit(1)
 
 if __name__ == "__main__":
     main()
+
 
 
 
