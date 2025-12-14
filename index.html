@@ -14,81 +14,76 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
 
-   <style>
+  <style>
     :root {
-        --bg-color: #0f172a;       /* 深藍黑背景 */
-        --card-bg: #1e293b;        /* 卡片深灰藍 */
-        --text-main: #f8fafc;      /* 亮白文字 */
-        --text-sub: #94a3b8;       /* 灰白副標 */
-        --primary: #0ea5e9;        /* 科技藍 */
-        --accent: #f59e0b;         /* 警示琥珀 */
-        --danger: #ef4444;         /* 危險紅 */
-        --success: #10b981;        /* 安全綠 */
+        --primary: #4f46e5;
+        --glass-bg: rgba(255, 255, 255, 0.7);
+        --glass-border: rgba(255, 255, 255, 0.5);
+        --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
     }
 
-    body { background-color: var(--bg-color); color: var(--text-main); font-family: 'Noto Sans TC', sans-serif; }
+    body {
+        /* 背景圖：您可以換成任何喜歡的漸層或圖片 */
+        background: linear-gradient(120deg, #e0c3fc 0%, #8ec5fc 100%);
+        background-attachment: fixed;
+        font-family: 'Noto Sans TC', sans-serif;
+        color: #374151;
+        min-height: 100vh;
+    }
 
     /* Header */
     .header-wrapper {
-        background: linear-gradient(180deg, rgba(15,23,42,1) 0%, rgba(30,41,59,0) 100%);
-        border-bottom: 1px solid rgba(56, 189, 248, 0.2);
-        padding: 3rem 0;
+        background: rgba(255, 255, 255, 0.2);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-bottom: 1px solid var(--glass-border);
+        padding: 2rem 0 4rem;
+        margin-bottom: 2rem;
     }
-    .header-title { color: var(--primary); text-shadow: 0 0 15px rgba(14, 165, 233, 0.5); font-weight: 700; letter-spacing: 2px;}
-    .header-subtitle { color: var(--text-sub); }
+    .header-title { color: #1e3a8a; font-weight: 800; font-size: 2.2rem; }
+    .header-subtitle { color: #4b5563; font-weight: 500; }
+
+    /* Glass Cards */
+    .stat-card, .card-custom, .search-bar {
+        background: var(--glass-bg);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border-radius: 20px;
+        border: 1px solid var(--glass-border);
+        box-shadow: var(--glass-shadow);
+    }
+
+    /* Stats */
+    .stat-card { padding: 20px; text-align: center; transition: 0.3s; }
+    .stat-card:hover { transform: translateY(-5px); background: rgba(255,255,255,0.9); }
+    .stat-number { font-size: 2.2rem; font-weight: 800; color: var(--primary); }
 
     /* Search */
-    .search-bar {
-        background: var(--card-bg); border: 1px solid #334155; color: white;
-        padding: 15px 25px; border-radius: 5px; width: 100%;
-    }
-    .search-bar:focus { outline: 2px solid var(--primary); border-color: transparent; }
+    .search-bar { padding: 15px 30px; width: 100%; border: none; outline: none; margin-top: -3rem; }
 
-    /* Stats Cards */
-    .stat-card {
-        background: var(--card-bg); border: 1px solid #334155; border-radius: 8px;
-        padding: 20px; text-align: center; position: relative; overflow: hidden;
-    }
-    .stat-card::before { content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--primary); }
-    .stat-number { font-size: 2.5rem; font-weight: 700; color: var(--text-main); font-family: 'Roboto Mono'; }
-    .stat-label { color: var(--text-sub); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; }
+    /* Tender List */
+    .card-custom { margin-bottom: 20px; padding: 25px; transition: 0.3s; }
+    .card-custom:hover { transform: scale(1.01); background: rgba(255,255,255,0.95); }
 
-    /* Buttons */
-    .nav-pills .nav-link { color: var(--text-sub); background: transparent; border: 1px solid #334155; margin: 0 5px; border-radius: 4px; }
-    .nav-pills .nav-link.active { background: var(--primary); color: white; border-color: var(--primary); box-shadow: 0 0 15px rgba(14, 165, 233, 0.4); }
+    .news-link { color: #111827; text-decoration: none; font-weight: 700; font-size: 1.15rem; display: block; margin: 10px 0; }
+    .news-link:hover { background: linear-gradient(90deg, #4f46e5, #ec4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+    /* Pills & Badges */
+    .badge-custom { background: white; color: #4f46e5; padding: 5px 10px; border-radius: 10px; font-weight: 600; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    .info-pill { background: rgba(255,255,255,0.5); border: 1px solid white; padding: 5px 15px; border-radius: 30px; font-size: 0.9rem; display: flex; align-items: center; color: #555;}
     
-    .keyword-btn { background: #334155; color: var(--text-sub); border: none; font-size: 0.85rem; padding: 5px 12px; border-radius: 4px; margin: 3px; }
-    .keyword-btn.active { background: var(--primary); color: white; }
-
-    /* Tender Cards */
-    .card-custom {
-        background: var(--card-bg); border: 1px solid #334155; border-radius: 8px;
-        margin-bottom: 15px; padding: 20px; transition: all 0.3s;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-    }
-    .card-custom:hover { transform: translateY(-2px); border-color: var(--primary); box-shadow: 0 0 20px rgba(14, 165, 233, 0.2); }
-    
-    .news-link { color: var(--text-main); text-decoration: none; font-size: 1.2rem; font-weight: 600; display: block; margin: 10px 0; }
-    .news-link:hover { color: var(--primary); }
-
-    /* Tags & Info */
-    .badge-custom { background: #334155; color: var(--text-sub); padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; }
-    .info-pill { background: transparent; border: 1px solid #475569; color: var(--text-sub); padding: 4px 10px; border-radius: 4px; font-size: 0.85rem; display: flex; align-items: center; }
-    .budget-text { color: var(--accent); font-weight: bold; font-family: 'Roboto Mono'; }
-    .deadline-text { color: var(--danger); }
+    .nav-pills .nav-link { background: rgba(255,255,255,0.3); color: #555; border-radius: 30px; margin: 0 5px; backdrop-filter: blur(4px); }
+    .nav-pills .nav-link.active { background: var(--primary); color: white; box-shadow: 0 5px 15px rgba(79, 70, 229, 0.4); }
 
     /* Analyze Button */
     .btn-analyze {
-        background: linear-gradient(90deg, #0ea5e9, #2563eb); border: none; color: white;
-        padding: 5px 15px; border-radius: 4px; font-size: 0.85rem; cursor: pointer;
-        box-shadow: 0 0 10px rgba(14, 165, 233, 0.5);
+        background: #111827; color: white; border-radius: 30px; padding: 6px 16px; border: none; font-size: 0.85rem; cursor: pointer; transition: 0.3s;
     }
-    .btn-analyze:hover { box-shadow: 0 0 20px rgba(14, 165, 233, 0.8); }
+    .btn-analyze:hover { background: #000; transform: scale(1.05); }
     
-    /* Loading */
-    .date-separator { color: var(--text-sub); font-weight: bold; margin: 30px 0; display: flex; align-items: center; }
-    .date-separator::before, .date-separator::after { content: ""; flex: 1; border-bottom: 1px solid #334155; }
-    .date-text { background: #334155; padding: 5px 15px; border-radius: 20px; margin: 0 10px; }
+    .date-separator { color: #555; margin: 30px 0; display: flex; align-items: center; }
+    .date-separator::before, .date-separator::after { content: ""; flex: 1; border-bottom: 1px solid rgba(0,0,0,0.1); }
+    .date-text { background: rgba(255,255,255,0.6); padding: 5px 15px; border-radius: 20px; margin: 0 10px; }
 </style>
 </head>
 <body>
@@ -460,4 +455,5 @@
     </script>
 </body>
 </html>
+
 
