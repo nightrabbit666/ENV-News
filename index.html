@@ -1,459 +1,346 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-Hant" data-bs-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>政府招標戰情儀表板</title>
-    
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
+    <title>政府標案戰情室</title>
     
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;600;700&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
 
-  <style>
-    :root {
-        --primary: #4f46e5;
-        --glass-bg: rgba(255, 255, 255, 0.7);
-        --glass-border: rgba(255, 255, 255, 0.5);
-        --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
-    }
+    <style>
+        /* === 全局變數定義 === */
+        :root {
+            --bg-dark: #0f172a;       /* 深海軍藍背景 */
+            --bg-panel: #1e293b;      /* 面板背景 */
+            --accent-cyan: #0ea5e9;   /* 霓虹青強調色 */
+            --accent-amber: #f59e0b;  /* 琥珀警示色 */
+            --accent-red: #ff3366;    /* 數碼紅 (用於今日) */
+            --text-bright: #f8fafc;   /* 高亮文字 */
+            --text-muted: #94a3b8;    /* 次要文字 */
+            
+            --font-tech: 'Chakra Petch', sans-serif; /* 主要文字 */
+            --font-digital: 'Orbitron', sans-serif;  /* 數字顯示 */
+        }
 
-    body {
-        /* 背景圖：您可以換成任何喜歡的漸層或圖片 */
-        background: linear-gradient(120deg, #e0c3fc 0%, #8ec5fc 100%);
-        background-attachment: fixed;
-        font-family: 'Noto Sans TC', sans-serif;
-        color: #374151;
-        min-height: 100vh;
-    }
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-bright);
+            font-family: var(--font-tech);
+            min-height: 100vh;
+            background-image: 
+                linear-gradient(rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.9)),
+                url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%230ea5e9' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+            /* 添加一點細微的電路板紋理背景 */
+        }
 
-    /* Header */
-    .header-wrapper {
-        background: rgba(255, 255, 255, 0.2);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-        border-bottom: 1px solid var(--glass-border);
-        padding: 2rem 0 4rem;
-        margin-bottom: 2rem;
-    }
-    .header-title { color: #1e3a8a; font-weight: 800; font-size: 2.2rem; }
-    .header-subtitle { color: #4b5563; font-weight: 500; }
+        /* === 通用霓虹光影效果 === */
+        .glow-cyan { text-shadow: 0 0 10px rgba(14, 165, 233, 0.5); }
+        .glow-amber { text-shadow: 0 0 10px rgba(245, 158, 11, 0.5); }
+        .border-glow { box-shadow: 0 0 15px rgba(14, 165, 233, 0.2) inset; }
 
-    /* Glass Cards */
-    .stat-card, .card-custom, .search-bar {
-        background: var(--glass-bg);
-        backdrop-filter: blur(8px);
-        -webkit-backdrop-filter: blur(8px);
-        border-radius: 20px;
-        border: 1px solid var(--glass-border);
-        box-shadow: var(--glass-shadow);
-    }
+        /* === 1. 頂部標題列 === */
+        .war-room-header {
+            padding: 1.5rem 0;
+            border-bottom: 1px solid rgba(14, 165, 233, 0.2);
+            margin-bottom: 2rem;
+            background: linear-gradient(90deg, rgba(15,23,42,0) 0%, rgba(14,165,233,0.1) 50%, rgba(15,23,42,0) 100%);
+        }
+        .header-title {
+            font-family: var(--font-digital);
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+        /* 系統狀態指示燈動畫 */
+        .status-indicator {
+            display: inline-block;
+            width: 12px; height: 12px;
+            background-color: #10b981; /* 正常綠 */
+            border-radius: 50%;
+            margin-right: 8px;
+            box-shadow: 0 0 10px #10b981;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; box-shadow: 0 0 5px #10b981; }
+            50% { opacity: 0.5; box-shadow: 0 0 20px #10b981; }
+            100% { opacity: 1; box-shadow: 0 0 5px #10b981; }
+        }
 
-    /* Stats */
-    .stat-card { padding: 20px; text-align: center; transition: 0.3s; }
-    .stat-card:hover { transform: translateY(-5px); background: rgba(255,255,255,0.9); }
-    .stat-number { font-size: 2.2rem; font-weight: 800; color: var(--primary); }
+        /* === 2. 控制區 (搜尋與過濾) === */
+        .control-panel {
+            background: rgba(30, 41, 59, 0.5);
+            padding: 2rem;
+            border-radius: 16px;
+            border: 1px solid rgba(14, 165, 233, 0.1);
+            backdrop-filter: blur(10px);
+        }
+        /* 發光搜尋框 */
+        .search-input-cyber {
+            background-color: rgba(15, 23, 42, 0.8);
+            border: 1px solid var(--accent-cyan);
+            color: var(--text-bright);
+            padding: 15px 25px;
+            font-size: 1.1rem;
+            border-radius: 50px;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 15px rgba(14, 165, 233, 0.2);
+        }
+        .search-input-cyber:focus {
+            background-color: rgba(15, 23, 42, 1);
+            box-shadow: 0 0 30px rgba(14, 165, 233, 0.6);
+            border-color: var(--accent-cyan);
+            color: white;
+        }
+        /* 過濾標籤 */
+        .filter-badge {
+            background: transparent;
+            border: 1px solid var(--text-muted);
+            color: var(--text-muted);
+            padding: 8px 16px;
+            border-radius: 30px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: var(--font-digital);
+            letter-spacing: 1px;
+        }
+        .filter-badge:hover, .filter-badge.active {
+            border-color: var(--accent-cyan);
+            color: var(--accent-cyan);
+            box-shadow: 0 0 15px rgba(14, 165, 233, 0.4);
+            background: rgba(14, 165, 233, 0.1);
+        }
 
-    /* Search */
-    .search-bar { padding: 15px 30px; width: 100%; border: none; outline: none; margin-top: -3rem; }
+        /* === 3. 統計數據區 (電子鐘風格) === */
+        .stat-card-cyber {
+            background: var(--bg-panel);
+            border: 1px solid rgba(14, 165, 233, 0.15);
+            border-radius: 12px;
+            padding: 25px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.3s;
+        }
+        .stat-card-cyber:hover {
+            transform: translateY(-5px);
+            border-color: var(--accent-cyan);
+        }
+        /* 掃描線效果 */
+        .stat-card-cyber::after {
+            content: '';
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(transparent 50%, rgba(14, 165, 233, 0.05) 50%);
+            background-size: 100% 4px;
+            pointer-events: none;
+        }
+        .stat-num-digital {
+            font-family: var(--font-digital);
+            font-size: 3rem;
+            font-weight: 700;
+            display: block;
+            margin-bottom: 10px;
+            text-shadow: 0 0 10px currentColor; /* 讓數字發光 */
+        }
+        .num-red { color: var(--accent-red); }
+        .num-blue { color: var(--accent-cyan); }
+        .num-white { color: var(--text-bright); }
+        .stat-label {
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.85rem;
+        }
 
-    /* Tender List */
-    .card-custom { margin-bottom: 20px; padding: 25px; transition: 0.3s; }
-    .card-custom:hover { transform: scale(1.01); background: rgba(255,255,255,0.95); }
+        /* === 4. 導航分頁 (膠囊狀) === */
+        .nav-pills-cyber .nav-link {
+            color: var(--text-muted);
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid rgba(14, 165, 233, 0.2);
+            border-radius: 50px;
+            padding: 10px 25px;
+            margin: 0 5px;
+            font-family: var(--font-tech);
+            letter-spacing: 1px;
+            transition: all 0.3s;
+        }
+        .nav-pills-cyber .nav-link:hover {
+            color: var(--accent-cyan);
+            border-color: var(--accent-cyan);
+        }
+        .nav-pills-cyber .nav-link.active {
+            background: var(--accent-cyan);
+            color: var(--bg-dark);
+            font-weight: 700;
+            box-shadow: 0 0 20px rgba(14, 165, 233, 0.6);
+            border-color: var(--accent-cyan);
+        }
 
-    .news-link { color: #111827; text-decoration: none; font-weight: 700; font-size: 1.15rem; display: block; margin: 10px 0; }
-    .news-link:hover { background: linear-gradient(90deg, #4f46e5, #ec4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        /* === 5. 資料列表 (高科技面板卡片) === */
+        .tender-card-tech {
+            background: var(--bg-panel);
+            border: 1px solid rgba(14, 165, 233, 0.1);
+            border-left: 4px solid var(--accent-cyan); /* 預設左側指示條 */
+            border-radius: 8px;
+            margin-bottom: 20px;
+            padding: 20px;
+            position: relative;
+            transition: all 0.3s;
+        }
+        .tender-card-tech:hover {
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3), 0 0 20px rgba(14, 165, 233, 0.1) inset;
+            transform: scale(1.01);
+            border-color: var(--accent-cyan);
+        }
+        /* 不同來源的指示條顏色 */
+        .indicator-env { border-left-color: var(--accent-cyan); }
+        .indicator-pis { border-left-color: var(--accent-amber); }
 
-    /* Pills & Badges */
-    .badge-custom { background: white; color: #4f46e5; padding: 5px 10px; border-radius: 10px; font-weight: 600; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-    .info-pill { background: rgba(255,255,255,0.5); border: 1px solid white; padding: 5px 15px; border-radius: 30px; font-size: 0.9rem; display: flex; align-items: center; color: #555;}
-    
-    .nav-pills .nav-link { background: rgba(255,255,255,0.3); color: #555; border-radius: 30px; margin: 0 5px; backdrop-filter: blur(4px); }
-    .nav-pills .nav-link.active { background: var(--primary); color: white; box-shadow: 0 5px 15px rgba(79, 70, 229, 0.4); }
+        .org-badge-tech {
+            background: rgba(14, 165, 233, 0.15);
+            color: var(--accent-cyan);
+            border: 1px solid var(--accent-cyan);
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+        }
+        .tender-title-tech {
+            font-size: 1.25rem;
+            color: var(--text-bright);
+            text-decoration: none;
+            display: block;
+            margin: 12px 0;
+            font-weight: 600;
+        }
+        .tender-title-tech:hover {
+            color: var(--accent-cyan);
+            text-shadow: 0 0 10px rgba(14, 165, 233, 0.5);
+        }
+        .budget-highlight {
+            font-family: var(--font-digital);
+            color: var(--accent-amber);
+            font-size: 1.3rem;
+            font-weight: 700;
+            text-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+        }
+        .meta-info {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .meta-info i { color: var(--accent-cyan); opacity: 0.7; }
 
-    /* Analyze Button */
-    .btn-analyze {
-        background: #111827; color: white; border-radius: 30px; padding: 6px 16px; border: none; font-size: 0.85rem; cursor: pointer; transition: 0.3s;
-    }
-    .btn-analyze:hover { background: #000; transform: scale(1.05); }
-    
-    .date-separator { color: #555; margin: 30px 0; display: flex; align-items: center; }
-    .date-separator::before, .date-separator::after { content: ""; flex: 1; border-bottom: 1px solid rgba(0,0,0,0.1); }
-    .date-text { background: rgba(255,255,255,0.6); padding: 5px 15px; border-radius: 20px; margin: 0 10px; }
-</style>
+        /* 載入中動畫 */
+        .loading-cyber { text-align: center; padding: 60px; color: var(--accent-cyan); opacity: 0.7; }
+    </style>
 </head>
 <body>
 
-    <div id="status-bar"></div>
+    <div class="container-fluid px-lg-5">
+        <header class="war-room-header d-flex justify-content-between align-items-center">
+            <h1 class="header-title mb-0 glow-cyan">
+                <i class="fas fa-satellite-dish me-2"></i>標案戰情室 <span style="font-size: 0.6em; opacity: 0.7;">V34.0</span>
+            </h1>
+            <div class="d-flex align-items-center">
+                <span class="text-muted me-3" style="font-size: 0.9rem; letter-spacing: 1px;">SYSTEM STATUS:</span>
+                <div class="status-indicator"></div>
+                <span style="color: #10b981; font-weight: 600; font-family: var(--font-digital);">ONLINE</span>
+            </div>
+        </header>
 
-    <div class="header-wrapper">
-        <div id="last-update" class="last-update-badge" style="display:none"></div>
-        <div class="header-content container">
-            <h1 class="header-title"><i class="fas fa-chart-line me-2"></i>標案戰情儀表板</h1>
-            <p class="header-subtitle">Intelligence Dashboard | 資源循環署．環境管理署．政府採購網</p>
-        </div>
-    </div>
+        <section class="control-panel mb-5 mx-auto" style="max-width: 900px;">
+            <div class="mb-4">
+                <input type="text" class="form-control search-input-cyber" placeholder="請輸入關鍵字進行戰情搜索...">
+            </div>
+            <div class="d-flex flex-wrap justify-content-center gap-2">
+                <span class="text-muted align-self-center me-2" style="font-size: 0.9rem;">快速過濾 ></span>
+                <button class="filter-badge active">資源回收 (5)</button>
+                <button class="filter-badge">廢棄物清運 (12)</button>
+                <button class="filter-badge">環境管理署 (8)</button>
+                <button class="filter-badge">掩埋場 (3)</button>
+            </div>
+        </section>
 
-    <div class="container" style="max-width: 1000px;">
-        
-        <div class="search-container text-center">
-            <input type="text" id="searchInput" class="search-bar" placeholder="🔍 搜尋標案名稱、機關單位、關鍵字...">
-        </div>
-
-        <div class="mb-5 text-center">
-            <div id="keyword-badges" class="d-flex flex-wrap justify-content-center gap-1"></div>
-        </div>
-
-        <div class="row mb-5 g-4">
-            <div class="col-md-4">
-                <div class="stat-card border-top-accent accent-today">
-                    <div class="stat-number" id="todayCount">0</div>
-                    <div class="stat-label">🔥 今日新增商機</div>
+        <section class="row g-4 mb-5 justify-content-center">
+            <div class="col-md-4 col-lg-3">
+                <div class="stat-card-cyber border-glow">
+                    <span class="stat-num-digital num-red">08</span>
+                    <span class="stat-label"><i class="fas fa-bolt me-1"></i> 今日新增商機</span>
                 </div>
             </div>
-            <div class="col-md-4">
-                <div class="stat-card border-top-accent accent-history">
-                    <div class="stat-number" id="historyCount">0</div>
-                    <div class="stat-label">🗄️ 歷史資料庫存量</div>
+            <div class="col-md-4 col-lg-3">
+                <div class="stat-card-cyber border-glow">
+                    <span class="stat-num-digital num-blue">1,245</span>
+                    <span class="stat-label"><i class="fas fa-database me-1"></i> 歷史資料存量</span>
                 </div>
             </div>
-            <div class="col-md-4">
-                <div class="stat-card border-top-accent accent-total">
-                    <div class="stat-number" id="totalCount">0</div>
-                    <div class="stat-label">📊 監控總筆數</div>
+            <div class="col-md-4 col-lg-3">
+                <div class="stat-card-cyber border-glow">
+                    <span class="stat-num-digital num-white">1,253</span>
+                    <span class="stat-label"><i class="fas fa-chart-pie me-1"></i> 監控總筆數</span>
                 </div>
             </div>
-        </div>
+        </section>
 
-        <ul class="nav nav-pills mb-4 justify-content-center" id="pills-tab" role="tablist">
-            <li class="nav-item"><button class="nav-link active" id="pills-today-tab" data-bs-toggle="pill" data-bs-target="#pills-today">🔥 今日快訊</button></li>
-            <li class="nav-item"><button class="nav-link" id="pills-history-tab" data-bs-toggle="pill" data-bs-target="#pills-history">🗄️ 歷史查詢</button></li>
-            <li class="nav-item"><button class="nav-link" id="pills-expired-tab" data-bs-toggle="pill" data-bs-target="#pills-expired">💀 已截標</button></li>
+        <ul class="nav nav-pills nav-pills-cyber mb-4 justify-content-center" id="pills-tab" role="tablist">
+            <li class="nav-item"><button class="nav-link active">今日快訊</button></li>
+            <li class="nav-item"><button class="nav-link">歷史查詢</button></li>
+            <li class="nav-item"><button class="nav-link">已截標案件</button></li>
         </ul>
 
-        <div class="tab-content" id="pills-tabContent">
-            <div class="tab-pane fade show active" id="pills-today">
-                <div id="container-today">
-                    <div class="loading"><i class="fas fa-circle-notch fa-spin fa-2x mb-3 text-primary"></i><br>正在同步最新資料...</div>
-                </div>
-            </div>
-            <div class="tab-pane fade" id="pills-history">
-                <div id="container-history">
-                    <div class="loading"><i class="fas fa-circle-notch fa-spin fa-2x mb-3 text-primary"></i><br>正在讀取資料庫...</div>
-                </div>
-            </div>
-            <div class="tab-pane fade" id="pills-expired">
-                <div id="container-expired">
-                    <div class="loading"><i class="fas fa-circle-notch fa-spin fa-2x mb-3 text-primary"></i><br>讀取封存資料...</div>
-                </div>
+        <div class="tab-content mx-auto" style="max-width: 1000px;">
+            <div class="tab-pane fade show active">
+                <div id="data-container">
+                    
+                    <div class="tender-card-tech indicator-env">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="org-badge-tech"><i class="fas fa-building me-1"></i>環境管理署</span>
+                            <span class="badge bg-dark border border-info text-info">公告中</span>
+                        </div>
+                        <a href="#" class="tender-title-tech">114年度全國廢棄物各類處理廠(場)營運管理監督及稽查專案工作計畫</a>
+                        <div class="d-flex justify-content-between align-items-end mt-3 flex-wrap">
+                            <div class="meta-info">
+                                <div><i class="far fa-calendar-alt me-1"></i> 截止: 2025/01/15</div>
+                                <div><i class="fas fa-tag me-1"></i> 廢棄物清運</div>
+                            </div>
+                            <div class="text-end">
+                                <div style="font-size: 0.8rem; color: var(--text-muted);">預算金額</div>
+                                <div class="budget-highlight">$ 15,000,000</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tender-card-tech indicator-pis">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="org-badge-tech" style="border-color: var(--accent-amber); color: var(--accent-amber);"><i class="fas fa-gavel me-1"></i>台灣電力公司</span>
+                             <span class="badge bg-dark border border-warning text-warning">公開招標</span>
+                        </div>
+                        <a href="#" class="tender-title-tech">台中發電廠廢金屬資源回收變賣案</a>
+                        <div class="d-flex justify-content-between align-items-end mt-3 flex-wrap">
+                            <div class="meta-info">
+                                <div><i class="far fa-calendar-alt me-1"></i> 截止: 2025/01/12</div>
+                                <div><i class="fas fa-tag me-1"></i> 資源回收</div>
+                            </div>
+                            <div class="text-end">
+                                <div style="font-size: 0.8rem; color: var(--text-muted);">預算金額</div>
+                                <div class="budget-highlight" style="color: var(--accent-cyan); text-shadow: 0 0 10px rgba(14,165,233,0.5);">$ 2,500,000</div>
+                            </div>
+                        </div>
+                    </div>
+                     </div>
             </div>
         </div>
+
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
-    <script>
-        // ==========================================
-        // ⚠️ 設定區：您的 Google Sheets CSV 連結
-        // ==========================================
-        
-        const sheetCsvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSL9csppWjrqt8UOwwOwDxI4WON1aujg78zBush52aLIUeFubdpp9Au93c6cgf_qDLuRRX2NP0OvTkJ/pub?gid=0&single=true&output=csv';
-        const logCsvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSL9csppWjrqt8UOwwOwDxI4WON1aujg78zBush52aLIUeFubdpp9Au93c6cgf_qDLuRRX2NP0OvTkJ/pub?gid=469067754&single=true&output=csv'; 
-        
-        // ★ History 分頁連結 (請確認是否正確)
-        const historyCsvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSL9csppWjrqt8UOwwOwDxI4WON1aujg78zBush52aLIUeFubdpp9Au93c6cgf_qDLuRRX2NP0OvTkJ/pub?gid=175963084&single=true&output=csv'; 
-
-        // ==========================================
-
-        let allData = [];
-        let historyDataCache = null; // 快取歷史資料
-        let todayStr = "";
-
-        document.addEventListener('DOMContentLoaded', function() {
-            const dateObj = new Date();
-            todayStr = `${dateObj.getFullYear() - 1911}/${String(dateObj.getMonth() + 1).padStart(2, '0')}/${String(dateObj.getDate()).padStart(2, '0')}`;
-            
-            fetchData();
-            checkSystemStatus();
-            
-            document.getElementById('searchInput').addEventListener('input', function(e) {
-                const keyword = e.target.value;
-                document.querySelectorAll('.keyword-btn').forEach(btn => btn.classList.remove('active'));
-                
-                renderList(filterData(allData, true, keyword), 'container-today', false);
-                renderList(filterData(allData, false, keyword), 'container-history', true);
-                renderList(filterData(allData, 'expired', keyword), 'container-expired', true);
-            });
-        });
-
-        // 讀取主資料
-        function fetchData() {
-            Papa.parse(sheetCsvUrl, {
-                download: true, header: true,
-                complete: function(results) {
-                    allData = results.data.filter(item => item.Title && item.Link).reverse();
-                    updateStats();
-                    renderKeywords();
-                    renderList(filterData(allData, true, ''), 'container-today', false);
-                    renderList(filterData(allData, false, ''), 'container-history', true);
-                    renderList(filterData(allData, 'expired', ''), 'container-expired', true);
-                }
-            });
-        }
-
-        // 讀取日誌
-        function checkSystemStatus() {
-            Papa.parse(logCsvUrl, {
-                download: true, header: true,
-                complete: function(results) {
-                    const logs = results.data.filter(r => r.Time);
-                    if (logs.length > 0) {
-                        const lastLog = logs[logs.length - 1];
-                        const statusBar = document.getElementById('status-bar');
-                        const lastUpdate = document.getElementById('last-update');
-                        if (lastLog.Status === 'ERROR') {
-                            statusBar.className = 'status-error';
-                            statusBar.innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i> 系統異常警告：${lastLog.Message}`;
-                            statusBar.style.display = 'block';
-                        } else {
-                            lastUpdate.innerHTML = `<span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>系統正常</span> <span class="small ms-1">更新: ${lastLog.Time}</span>`;
-                            lastUpdate.style.display = 'block';
-                        }
-                    }
-                }
-            });
-        }
-
-        // ★ 觸發分析 (Lazy Loading)
-        async function startAnalysis(btnId, title, org) {
-            const btn = document.getElementById(btnId);
-            const originalHTML = btn.innerHTML;
-            btn.disabled = true;
-            btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 分析中...`;
-
-            try {
-                if (!historyDataCache) {
-                    await new Promise((resolve, reject) => {
-                        Papa.parse(historyCsvUrl, {
-                            download: true, header: true,
-                            complete: function(results) {
-                                historyDataCache = results.data;
-                                console.log("歷史資料庫下載完成", historyDataCache.length);
-                                resolve();
-                            },
-                            error: function(err) { reject(err); }
-                        });
-                    });
-                }
-
-                await new Promise(r => setTimeout(r, 600)); // UX 延遲感
-                const result = performAnalysis(title, org);
-                showResultModal(result, title);
-
-            } catch (error) {
-                console.error(error);
-                Swal.fire({ icon: 'error', title: '讀取失敗', text: '請檢查 History CSV 連結是否正確' });
-            } finally {
-                btn.innerHTML = originalHTML;
-                btn.disabled = false;
-            }
-        }
-
-        // ★ 分析運算邏輯
-        function performAnalysis(currentTitle, currentOrg) {
-            const coreTitle = currentTitle.replace(/\d{3}年度?|\d{4}年?/g, "").replace(/公告|招標|案|計畫|勞務|採購/g, "").trim();
-            
-            const matches = historyDataCache.filter(row => {
-                const rowOrg = row['Org'] || row['機關名稱']; 
-                const rowTitle = row['Title'] || row['標案名稱'];
-                return rowOrg === currentOrg && rowTitle && rowTitle.includes(coreTitle);
-            });
-
-            if (matches.length === 0) return null;
-
-            matches.sort((a, b) => (b.Date || "").localeCompare(a.Date || ""));
-            const lastCase = matches[0];
-            
-            let topWinner = "資料庫無紀錄";
-            const winners = matches.map(m => m.Winner || m.得標廠商).filter(w => w);
-            if(winners.length > 0) {
-                const counts = {};
-                winners.forEach(w => counts[w] = (counts[w] || 0) + 1);
-                topWinner = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b);
-            }
-
-            return {
-                count: matches.length,
-                lastDate: lastCase.Date,
-                lastTitle: lastCase.Title || lastCase.標案名稱,
-                lastAmount: lastCase.Budget || lastCase.預算金額,
-                lastWinner: lastCase.Winner || lastCase.得標廠商 || "無資料",
-                dominantWinner: topWinner
-            };
-        }
-
-        // ★ 顯示結果視窗
-        function showResultModal(data, currentTitle) {
-            if (!data) {
-                Swal.fire({
-                    icon: 'info', title: '查無歷史關聯',
-                    text: '這似乎是一個全新的案件，過去資料庫中沒有相似紀錄。',
-                    confirmButtonColor: '#2563eb',
-                });
-                return;
-            }
-            Swal.fire({
-                title: '📊 戰情分析報告',
-                html: `
-                    <div style="text-align: left; font-size: 0.95rem; line-height: 1.6;">
-                        <div style="margin-bottom: 15px;">
-                            <small class="text-muted">目標標案</small>
-                            <div style="font-weight:700; color:#333;">${currentTitle}</div>
-                        </div>
-                        <hr style="border-top: 1px dashed #ddd;">
-                        <div class="row g-2">
-                            <div class="col-6">
-                                <small class="text-muted">歷史關聯</small>
-                                <div class="text-danger fw-bold">${data.count} 筆</div>
-                            </div>
-                            <div class="col-6">
-                                <small class="text-muted">最近一次</small>
-                                <div class="fw-bold">${data.lastDate}</div>
-                            </div>
-                            <div class="col-12">
-                                <small class="text-muted">歷史案名</small>
-                                <div>${data.lastTitle}</div>
-                            </div>
-                            <div class="col-12">
-                                <small class="text-muted">上次金額</small>
-                                <div class="text-primary fw-bold">${data.lastAmount}</div>
-                            </div>
-                        </div>
-                        <div class="mt-3 p-3 bg-light rounded border border-primary-subtle">
-                            <p class="mb-0 text-center">
-                                <small class="text-muted d-block mb-1">👑 歷年得標霸主</small>
-                                <span class="fs-5 fw-bold text-primary">${data.dominantWinner}</span>
-                            </p>
-                        </div>
-                    </div>
-                `,
-                icon: 'success',
-                confirmButtonText: '了解情資', confirmButtonColor: '#2563eb',
-                width: '450px'
-            });
-        }
-
-        // 渲染列表 (UI 優化版)
-        function renderList(data, containerId, groupByDate) {
-            const container = document.getElementById(containerId);
-            container.innerHTML = '';
-            if (data.length === 0) {
-                container.innerHTML = '<div class="empty-state"><i class="fas fa-folder-open fa-3x mb-3 opacity-25"></i><br>目前沒有相關資料</div>';
-                return;
-            }
-
-            let html = '';
-            let lastDate = '';
-
-            data.forEach((item, index) => {
-                if (groupByDate && item.Date !== lastDate) {
-                    html += `<div class="date-separator"><span class="date-text"><i class="far fa-calendar-alt me-2"></i>${item.Date}</span></div>`;
-                    lastDate = item.Date;
-                }
-
-                const isPis = item.Source && item.Source.includes("採購");
-                const indicatorClass = isPis ? 'indicator-pis' : 'indicator-env'; // 側邊顏色條
-                const btnId = `analyze-${containerId}-${index}`;
-
-                html += `
-                    <div class="card-custom">
-                        <div class="source-indicator ${indicatorClass}"></div>
-                        <div class="card-body-custom">
-                            <div class="d-flex justify-content-between align-items-start flex-wrap">
-                                <div class="mb-2">
-                                    <span class="badge badge-custom badge-org me-2"><i class="fas fa-building me-1"></i>${item.Org || item.Source}</span>
-                                    <span class="badge badge-custom badge-tag">${item.Tags || '一般'}</span>
-                                </div>
-                                <div class="d-flex gap-2">
-                                    <button id="${btnId}" class="btn-analyze" onclick="startAnalysis('${btnId}', '${item.Title}', '${item.Org}')">
-                                        <i class="fas fa-crosshairs me-1"></i> 戰情分析
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            <a href="${item.Link}" target="_blank" class="news-link">${item.Title}</a>
-                            
-                            <div class="info-grid">
-                                ${item.Budget ? `<div class="info-pill"><i class="fas fa-coins text-warning"></i><span class="budget-text">$${item.Budget}</span></div>` : ''}
-                                ${item.Deadline ? `<div class="info-pill"><i class="fas fa-hourglass-half text-danger"></i><span class="deadline-text">截止: ${item.Deadline}</span></div>` : ''}
-                                ${!groupByDate ? `<div class="info-pill"><i class="far fa-clock"></i>${item.Date}</div>` : ''}
-                                <a href="${item.Link}" target="_blank" class="btn-view ms-auto">查看公告 <i class="fas fa-external-link-alt ms-1"></i></a>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            });
-            container.innerHTML = html;
-        }
-
-        function updateStats() {
-            document.getElementById('totalCount').innerText = allData.length;
-            const todayCount = allData.filter(item => item.Date && item.Date.includes(todayStr)).length;
-            document.getElementById('todayCount').innerText = todayCount;
-            document.getElementById('historyCount').innerText = allData.length - todayCount;
-        }
-        function renderKeywords() {
-            const keywordMap = {};
-            allData.forEach(item => {
-                if (item.Tags) {
-                    let parts = item.Tags.split('-');
-                    let kw = parts.length > 1 ? parts[1] : item.Tags;
-                    keywordMap[kw] = (keywordMap[kw] || 0) + 1;
-                }
-            });
-            const container = document.getElementById('keyword-badges');
-            let html = '';
-            Object.entries(keywordMap).sort((a, b) => b[1] - a[1]).forEach(([key, count]) => {
-                html += `<button class="keyword-btn" onclick="setSearch('${key}', this)">${key} <span style="font-size:0.75rem; opacity:0.6; margin-left:3px;">${count}</span></button>`;
-            });
-            container.innerHTML = html;
-        }
-        function setSearch(keyword, btnElement) {
-            const searchInput = document.getElementById('searchInput');
-            searchInput.value = keyword;
-            searchInput.dispatchEvent(new Event('input'));
-            document.querySelectorAll('.keyword-btn').forEach(btn => btn.classList.remove('active'));
-            if(btnElement) btnElement.classList.add('active');
-        }
-        function filterData(data, type, keyword) {
-            const now = new Date(); now.setHours(0,0,0,0);
-            return data.filter(item => {
-                const itemDate = item.Date || "";
-                const matchDate = itemDate.includes(todayStr);
-                let isExpired = false;
-                if (item.Deadline) {
-                    const parts = item.Deadline.split('/');
-                    if (parts.length === 3) {
-                        const deadDate = new Date(parseInt(parts[0]) + 1911, parseInt(parts[1]) - 1, parseInt(parts[2]));
-                        if (deadDate < now) isExpired = true;
-                    }
-                }
-                if (type === 'today') { if (!matchDate) return false; } 
-                else if (type === 'history') { if (matchDate || isExpired) return false; } 
-                else if (type === 'expired') { if (!isExpired) return false; }
-                if (keyword) {
-                    const searchStr = (item.Title + item.Tags + item.Org + item.Source + item.Deadline).toLowerCase();
-                    if (!searchStr.includes(keyword.toLowerCase())) return false;
-                }
-                return true;
-            });
-        }
-    </script>
 </body>
 </html>
-
-
