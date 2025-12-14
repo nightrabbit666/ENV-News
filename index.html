@@ -14,286 +14,82 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
 
-    <style>
-        :root {
-            --primary-color: #2563eb;
-            --primary-dark: #1e40af;
-            --secondary-bg: #f3f4f6;
-            --card-bg: #ffffff;
-            --text-main: #1f2937;
-            --text-sub: #6b7280;
-            --accent-green: #10b981;
-            --accent-red: #ef4444;
-            --accent-yellow: #f59e0b;
-            --glass-header: rgba(255, 255, 255, 0.95);
-        }
+   <style>
+    :root {
+        --bg-color: #0f172a;       /* 深藍黑背景 */
+        --card-bg: #1e293b;        /* 卡片深灰藍 */
+        --text-main: #f8fafc;      /* 亮白文字 */
+        --text-sub: #94a3b8;       /* 灰白副標 */
+        --primary: #0ea5e9;        /* 科技藍 */
+        --accent: #f59e0b;         /* 警示琥珀 */
+        --danger: #ef4444;         /* 危險紅 */
+        --success: #10b981;        /* 安全綠 */
+    }
 
-        body { 
-            background-color: var(--secondary-bg); 
-            font-family: 'Noto Sans TC', sans-serif; 
-            color: var(--text-main);
-            padding-bottom: 80px;
-        }
+    body { background-color: var(--bg-color); color: var(--text-main); font-family: 'Noto Sans TC', sans-serif; }
 
-        /* === 頂部導航與標題 === */
-        .header-wrapper {
-            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
-            padding: 3rem 0 5rem; /* 底部留白給搜尋框插入 */
-            margin-bottom: 3rem;
-            position: relative;
-            clip-path: polygon(0 0, 100% 0, 100% 85%, 0 100%);
-        }
+    /* Header */
+    .header-wrapper {
+        background: linear-gradient(180deg, rgba(15,23,42,1) 0%, rgba(30,41,59,0) 100%);
+        border-bottom: 1px solid rgba(56, 189, 248, 0.2);
+        padding: 3rem 0;
+    }
+    .header-title { color: var(--primary); text-shadow: 0 0 15px rgba(14, 165, 233, 0.5); font-weight: 700; letter-spacing: 2px;}
+    .header-subtitle { color: var(--text-sub); }
 
-        .header-content {
-            color: white;
-            text-align: center;
-            position: relative;
-            z-index: 2;
-        }
+    /* Search */
+    .search-bar {
+        background: var(--card-bg); border: 1px solid #334155; color: white;
+        padding: 15px 25px; border-radius: 5px; width: 100%;
+    }
+    .search-bar:focus { outline: 2px solid var(--primary); border-color: transparent; }
 
-        .header-title {
-            font-weight: 700;
-            letter-spacing: 1px;
-            font-size: 2rem;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
+    /* Stats Cards */
+    .stat-card {
+        background: var(--card-bg); border: 1px solid #334155; border-radius: 8px;
+        padding: 20px; text-align: center; position: relative; overflow: hidden;
+    }
+    .stat-card::before { content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--primary); }
+    .stat-number { font-size: 2.5rem; font-weight: 700; color: var(--text-main); font-family: 'Roboto Mono'; }
+    .stat-label { color: var(--text-sub); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; }
 
-        .header-subtitle {
-            opacity: 0.85;
-            font-weight: 300;
-            margin-top: 0.5rem;
-        }
+    /* Buttons */
+    .nav-pills .nav-link { color: var(--text-sub); background: transparent; border: 1px solid #334155; margin: 0 5px; border-radius: 4px; }
+    .nav-pills .nav-link.active { background: var(--primary); color: white; border-color: var(--primary); box-shadow: 0 0 15px rgba(14, 165, 233, 0.4); }
+    
+    .keyword-btn { background: #334155; color: var(--text-sub); border: none; font-size: 0.85rem; padding: 5px 12px; border-radius: 4px; margin: 3px; }
+    .keyword-btn.active { background: var(--primary); color: white; }
 
-        /* === 狀態條 === */
-        #status-bar { 
-            display: none; 
-            padding: 10px; 
-            text-align: center; 
-            color: white; 
-            font-weight: 500;
-            position: fixed;
-            top: 0; left: 0; right: 0;
-            z-index: 9999;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-        }
-        .status-error { background-color: var(--accent-red); }
-        .last-update-badge {
-            position: absolute;
-            top: 15px;
-            right: 20px;
-            background: rgba(255,255,255,0.2);
-            backdrop-filter: blur(5px);
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            color: white;
-            border: 1px solid rgba(255,255,255,0.3);
-        }
+    /* Tender Cards */
+    .card-custom {
+        background: var(--card-bg); border: 1px solid #334155; border-radius: 8px;
+        margin-bottom: 15px; padding: 20px; transition: all 0.3s;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
+    .card-custom:hover { transform: translateY(-2px); border-color: var(--primary); box-shadow: 0 0 20px rgba(14, 165, 233, 0.2); }
+    
+    .news-link { color: var(--text-main); text-decoration: none; font-size: 1.2rem; font-weight: 600; display: block; margin: 10px 0; }
+    .news-link:hover { color: var(--primary); }
 
-        /* === 搜尋框與過濾區 (浮動式設計) === */
-        .search-container {
-            margin-top: -3.5rem; /* 上移插入 Header */
-            position: relative;
-            z-index: 10;
-            margin-bottom: 2rem;
-        }
+    /* Tags & Info */
+    .badge-custom { background: #334155; color: var(--text-sub); padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; }
+    .info-pill { background: transparent; border: 1px solid #475569; color: var(--text-sub); padding: 4px 10px; border-radius: 4px; font-size: 0.85rem; display: flex; align-items: center; }
+    .budget-text { color: var(--accent); font-weight: bold; font-family: 'Roboto Mono'; }
+    .deadline-text { color: var(--danger); }
 
-        .search-bar { 
-            border-radius: 50px; 
-            padding: 15px 30px; 
-            border: none; 
-            width: 100%; 
-            max-width: 650px; 
-            box-shadow: 0 10px 25px rgba(37, 99, 235, 0.15); 
-            font-size: 1rem;
-            transition: all 0.3s ease;
-        }
-        .search-bar:focus {
-            outline: none;
-            box-shadow: 0 10px 30px rgba(37, 99, 235, 0.25);
-            transform: translateY(-2px);
-        }
-
-        /* === 關鍵字按鈕 === */
-        .keyword-btn { 
-            font-size: 0.85rem; 
-            margin: 4px; 
-            border: 1px solid #e5e7eb; 
-            background: white; 
-            color: var(--text-sub);
-            padding: 6px 14px;
-            border-radius: 20px;
-            transition: all 0.2s;
-        }
-        .keyword-btn:hover { 
-            background: #eff6ff; 
-            color: var(--primary-color);
-            border-color: #bfdbfe;
-            transform: translateY(-1px);
-        }
-        .keyword-btn.active { 
-            background: var(--primary-color); 
-            color: white; 
-            border-color: var(--primary-color); 
-            box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2);
-        }
-
-        /* === 統計儀表板 (Stats) === */
-        .stat-card {
-            background: white;
-            border-radius: 16px;
-            padding: 20px;
-            text-align: center;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.02);
-            border: 1px solid #f0f0f0;
-            transition: transform 0.3s;
-            height: 100%;
-        }
-        .stat-card:hover { transform: translateY(-5px); box-shadow: 0 10px 15px rgba(0,0,0,0.05); }
-        .stat-number { font-size: 2rem; font-weight: 700; font-family: 'Roboto Mono', monospace; }
-        .stat-label { color: var(--text-sub); font-size: 0.9rem; font-weight: 500; margin-top: 5px; }
-        
-        .border-top-accent { border-top: 4px solid; }
-        .accent-today { border-color: var(--accent-red); color: var(--accent-red); }
-        .accent-history { border-color: var(--primary-color); color: var(--primary-color); }
-        .accent-total { border-color: var(--text-main); color: var(--text-main); }
-
-        /* === 分頁籤 (Tabs) === */
-        .nav-pills .nav-link { 
-            border-radius: 12px; 
-            padding: 10px 20px; 
-            font-weight: 500; 
-            color: var(--text-sub); 
-            margin: 0 5px;
-            transition: all 0.2s;
-        }
-        .nav-pills .nav-link:hover { background-color: #e5e7eb; }
-        .nav-pills .nav-link.active { 
-            background-color: var(--primary-color); 
-            color: white; 
-            box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3); 
-        }
-
-        /* === 資料卡片 (Cards) === */
-        .card-custom { 
-            border: none; 
-            border-radius: 16px; 
-            box-shadow: 0 2px 10px rgba(0,0,0,0.03); 
-            background: white; 
-            margin-bottom: 20px; 
-            transition: all 0.2s ease-in-out; 
-            position: relative;
-            overflow: hidden;
-            border: 1px solid rgba(0,0,0,0.03);
-        }
-        .card-custom:hover { 
-            transform: translateY(-4px); 
-            box-shadow: 0 12px 25px rgba(0,0,0,0.08); 
-            border-color: rgba(37, 99, 235, 0.1);
-        }
-        
-        /* 來源標示條 */
-        .source-indicator {
-            position: absolute;
-            left: 0; top: 0; bottom: 0;
-            width: 6px;
-        }
-        .indicator-pis { background-color: var(--accent-yellow); } 
-        .indicator-env { background-color: var(--accent-green); }
-
-        .card-body-custom { padding: 24px 24px 24px 30px; } /* 左側留空間給指示條 */
-
-        /* 標籤 Badge */
-        .badge-custom { 
-            font-size: 0.8rem; 
-            padding: 6px 12px; 
-            border-radius: 8px; 
-            font-weight: 500;
-            letter-spacing: 0.5px;
-        }
-        .badge-org { background-color: #f3f4f6; color: var(--text-main); font-weight: 600; }
-        .badge-tag { background-color: #eff6ff; color: var(--primary-color); border: 1px solid #dbeafe; }
-
-        /* 標題與內文 */
-        .news-link { 
-            text-decoration: none; 
-            color: var(--text-main); 
-            font-weight: 700; 
-            font-size: 1.25rem; 
-            display: block; 
-            margin: 12px 0; 
-            line-height: 1.5;
-            transition: color 0.2s;
-        }
-        .news-link:hover { color: var(--primary-color); }
-
-        /* 資訊列 (預算/日期) */
-        .info-grid { display: flex; flex-wrap: wrap; gap: 15px; margin-top: 15px; align-items: center;}
-        .info-pill { 
-            display: flex; align-items: center; 
-            background: #fafafa; 
-            padding: 6px 14px; 
-            border-radius: 50px;
-            font-size: 0.9rem;
-            color: var(--text-sub);
-            border: 1px solid #f0f0f0;
-        }
-        .info-pill i { margin-right: 8px; font-size: 1rem; }
-        
-        .budget-text { color: var(--accent-red); font-weight: 700; font-family: 'Roboto Mono'; }
-        .deadline-text { color: #d97706; font-weight: 600; }
-
-        /* ★ 分析按鈕 (Hero Button) */
-        .btn-analyze {
-            background: linear-gradient(90deg, #0ea5e9 0%, #2563eb 100%);
-            color: white; 
-            font-size: 0.9rem; 
-            padding: 8px 20px;
-            border-radius: 50px; 
-            border: none; 
-            cursor: pointer; 
-            transition: all 0.3s;
-            display: inline-flex; 
-            align-items: center;
-            box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2);
-            font-weight: 500;
-        }
-        .btn-analyze:hover { 
-            box-shadow: 0 6px 12px rgba(37, 99, 235, 0.3); 
-            transform: scale(1.02);
-        }
-        .btn-analyze:disabled { 
-            background: #9ca3af; 
-            box-shadow: none; 
-            cursor: not-allowed; 
-            transform: none; 
-        }
-        .btn-view {
-            border: 1px solid #e5e7eb;
-            background: white;
-            color: var(--text-sub);
-            border-radius: 50px;
-            padding: 8px 20px;
-            font-size: 0.9rem;
-            text-decoration: none;
-            transition: all 0.2s;
-        }
-        .btn-view:hover { background: #f9fafb; color: var(--text-main); border-color: #d1d5db; }
-
-        /* 日期分隔 */
-        .date-separator { 
-            display: flex; align-items: center; margin: 40px 0 25px 0; 
-            color: var(--text-sub); font-size: 0.9rem; font-weight: 500; 
-        }
-        .date-separator::before, .date-separator::after { content: ""; flex: 1; border-bottom: 1px solid #e5e7eb; }
-        .date-text { 
-            background-color: #f3f4f6; color: var(--text-sub); 
-            padding: 6px 18px; border-radius: 20px; margin: 0 15px;
-        }
-
-        .loading { text-align: center; padding: 60px; color: var(--text-sub); }
-        .empty-state { text-align: center; padding: 80px; color: #9ca3af; }
-    </style>
+    /* Analyze Button */
+    .btn-analyze {
+        background: linear-gradient(90deg, #0ea5e9, #2563eb); border: none; color: white;
+        padding: 5px 15px; border-radius: 4px; font-size: 0.85rem; cursor: pointer;
+        box-shadow: 0 0 10px rgba(14, 165, 233, 0.5);
+    }
+    .btn-analyze:hover { box-shadow: 0 0 20px rgba(14, 165, 233, 0.8); }
+    
+    /* Loading */
+    .date-separator { color: var(--text-sub); font-weight: bold; margin: 30px 0; display: flex; align-items: center; }
+    .date-separator::before, .date-separator::after { content: ""; flex: 1; border-bottom: 1px solid #334155; }
+    .date-text { background: #334155; padding: 5px 15px; border-radius: 20px; margin: 0 10px; }
+</style>
 </head>
 <body>
 
@@ -664,3 +460,4 @@
     </script>
 </body>
 </html>
+
