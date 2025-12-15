@@ -354,8 +354,9 @@
             document.getElementById('searchInput').addEventListener('input', function(e) {
                 const keyword = e.target.value;
                 document.querySelectorAll('.keyword-btn').forEach(btn => btn.classList.remove('active'));
-                renderList(filterData(allData, true, keyword), 'container-today', false);
-                renderList(filterData(allData, false, keyword), 'container-history', true);
+                // 將 true 改為 'today'，將 false 改為 'history'
+                renderList(filterData(allData, 'today', keyword), 'container-today', false);
+                renderList(filterData(allData, 'history', keyword), 'container-history', true);
                 renderList(filterData(allData, 'expired', keyword), 'container-expired', true);
             });
         });
@@ -389,8 +390,9 @@
                     allData = results.data.filter(item => item.Title && item.Link).reverse();
                     updateStats();
                     renderKeywords();
-                    renderList(filterData(allData, true, ''), 'container-today', false);
-                    renderList(filterData(allData, false, ''), 'container-history', true);
+                    // 將 true 改為 'today'，將 false 改為 'history'
+                    renderList(filterData(allData, 'today', ''), 'container-today', false);
+                    renderList(filterData(allData, 'history', ''), 'container-history', true);
                     renderList(filterData(allData, 'expired', ''), 'container-expired', true);
                 },
                 error: function(err) {
@@ -611,3 +613,4 @@
     </script>
 </body>
 </html>
+
