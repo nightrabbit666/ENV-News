@@ -19,7 +19,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 # --- 設定區 ---
 HEADLESS_MODE = True
-GOOGLE_CHAT_WEBHOOK = "https://chat.googleapis.com/v1/spaces/AAQAbfa7gJQ/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=N4OegGZLJ2y1ANxt41jIFf57RaGV4TI3Vw_GyHzdzeU"
+GOOGLE_CHAT_WEBHOOK = "https://chat.googleapis.com/v1/spaces/AAQADqt_uZc/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=MOuLzkHQFpQP_RDAlmdhWIzw3eWcl6xkUX5_WU09kzw"
 
 # ★ 設定預算門檻 (單位：元)，低於此金額不存入資料庫
 # 設為 0 代表全部都抓；設為 1000000 代表只抓一百萬以上的案子
@@ -290,3 +290,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
