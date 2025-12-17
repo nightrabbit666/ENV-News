@@ -421,13 +421,28 @@ function switchMode(mode) {
         Papa.parse(url, {
             download: true, header: true,
             complete: function(results) {
+                // 讀取資料並反轉 (新到舊)
                 allData = results.data.filter(item => item.Title && item.Link).reverse();
+                
+                // 更新統計數字
                 updateStats();
+                
+                // 清空搜尋框
                 document.getElementById('searchInput').value = '';
                 
-                // ★ 修正重點：直接傳入 allData，不要過濾 'today'
-                // 這樣才能看到累積的歷史資料庫
-                renderList(allData, 'container-today', false); 
+                // ★ 修正重點：同時更新三個分頁，確保舊的一般資料被覆蓋 ★
+                // 1. 今日快訊：只顯示當天資料
+                renderList(filterData(allData, 'today', ''), 'container-today', false);
+                
+                // 2. 歷史查詢：顯示未過期的舊資料
+                renderList(filterData(allData, 'history', ''), 'container-history', true);
+                
+                // 3. 已截標：顯示已過期資料
+                renderList(filterData(allData, 'expired', ''), 'container-expired', true);
+                
+                // 切換回第一個分頁，避免使用者停留在舊的已截標分頁
+                const todayTab = new bootstrap.Tab(document.getElementById('pills-today-tab'));
+                todayTab.show();
             },
             error: function(err) {
                 document.getElementById('container-today').innerHTML = '<div class="empty-state text-danger">讀取失敗，請檢查 CSV 連結</div>';
@@ -733,6 +748,7 @@ function switchMode(mode) {
     </script>
 </body>
 </html>
+
 
 
 
