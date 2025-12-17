@@ -73,16 +73,17 @@ def log_to_sheet(status, message):
         sheet.append_row([timestamp, status, message])
     except: pass
 
-def load_keywords_from_sheet():
+def load_keywords_from_sheet(sheet_name): # <--- 這裡加了參數
     try:
         client = get_google_client()
-        sheet = client.open_by_url(SHEET_URL).worksheet(CONFIG_SHEET_NAME)
+        sheet = client.open_by_url(SHEET_URL).worksheet(sheet_name) # <---這裡改成用參數
         records = sheet.get_all_records()
         kws = [r['Keyword'] for r in records if r['Type'] == '標案' and r['Keyword']]
         orgs = [r['Keyword'] for r in records if r['Type'] == '機關' and r['Keyword']]
         return (kws if kws else KEYWORDS), (orgs if orgs else ORG_KEYWORDS)
     except:
-        return KEYWORDS, ORG_KEYWORDS
+        print(f"⚠️ 無法讀取設定檔: {sheet_name}")
+        return [], []
 
 # 輔助：解析預算金額
 def parse_budget(budget_str):
@@ -230,10 +231,10 @@ def search_tender(driver, keyword, search_type):
         return results
     except: return []
 
-def upload_to_gsheet(df):
-    print("\n☁️ 上傳 Google Sheets...")
+def upload_to_gsheet(df, sheet_name): # <--- 這裡加了參數
+    print(f"\n☁️ 上傳至 {sheet_name}...")
     client = get_google_client()
-    sheet = client.open_by_url(SHEET_URL).worksheet(WORKSHEET_NAME)
+    sheet = client.open_by_url(SHEET_URL).worksheet(sheet_name) # <---這裡改成用參數
     existing_data = sheet.get_all_records()
     existing_links = set(str(row['Link']) for row in existing_data if 'Link' in row)
     
@@ -244,7 +245,6 @@ def upload_to_gsheet(df):
         # ★ 預算過濾器
         budget_val = parse_budget(row['Budget'])
         if MIN_BUDGET > 0 and budget_val < MIN_BUDGET:
-            # print(f"   (略過小額: {row['Budget']})")
             continue
 
         if str(row['Link']) not in existing_links:
@@ -263,106 +263,74 @@ def upload_to_gsheet(df):
 
 # --- 替換整個 main 函式 ---
 def main():
-    print("🚀 啟動爬蟲 (雙軌分類版 V2)...")
-    driver = init_driver()
-    
+    print("🚀 啟動爬蟲 (雙軌分類版)...")
     try:
-        # 迴圈執行定義好的任務 (General, Enterprise)
+        driver = init_driver()
+        
+        # 迴圈執行 TASKS 中的每一個任務
         for task_name, config in TASKS.items():
             print(f"\n======== 執行任務：{task_name} ========")
             
-            # 1. 讀取設定
-            # load_keywords_from_sheet 函式需確認是否支援傳入 sheet_name 參數
-            # 若您的版本不支援，請修改 load_keywords_from_sheet 讓它接受 sheet_name
-            # 這裡假設您已修改該函式，或是直接在此處指定分頁讀取
-            try:
-                client = get_google_client()
-                sheet = client.open_by_url(SHEET_URL).worksheet(config['config_sheet'])
-                records = sheet.get_all_records()
-                keywords = [r['Keyword'] for r in records if r['Type'] == '標案' and r['Keyword']]
-                org_keywords = [r['Keyword'] for r in records if r['Type'] == '機關' and r['Keyword']]
-            except:
-                print(f"   ⚠️ 無法讀取 {config['config_sheet']}，跳過")
+            # 1. 傳入分頁名稱讀取設定
+            keywords, org_keywords = load_keywords_from_sheet(config['config_sheet'])
+            
+            if not keywords: 
+                print("   ⚠️ 無關鍵字，跳過")
                 continue
-
-            if not keywords and not org_keywords: continue
 
             all_data = []
 
-            # 2. 執行搜尋邏輯 (依模式區分)
+            # 2. 搜尋邏輯
             if config['mode'] == "general":
-                # [一般模式]：標案名 OR 機關名 (全部混搜，不特別分類)
+                # 一般模式：全部混搜 (原本的邏輯)
+                print("   [一般模式] 搜尋機關與關鍵字...")
                 for org in org_keywords:
                     res = search_tender(driver, org, "org")
-                    for r in res: r['Tags'] = f"機關-{org}"
+                    for r in res: r['Tags'] = f"機關-{org}" # 簡單標記
                     all_data.extend(res)
-                    time.sleep(0.5)
+                    time.sleep(1)
                 for kw in keywords:
                     res = search_tender(driver, kw, "name")
                     for r in res: r['Tags'] = f"標案-{kw}"
                     all_data.extend(res)
-                    time.sleep(0.5)
-            
+                    time.sleep(1)
+
             elif config['mode'] == "enterprise":
-                # [企專模式]：關鍵字優先搜尋，再依據機關分類
-                # 策略：因為「標案名稱」一定要搜，所以只搜關鍵字
-                print(f"   ⚡ 企專模式：搜尋 {len(keywords)} 組關鍵字...")
+                # 企專模式：只搜「標案名稱」，抓回來後再用程式分類
+                print("   [企專模式] 搜尋關鍵字並進行機關分類...")
                 for kw in keywords:
                     res = search_tender(driver, kw, "name")
                     for r in res:
-                        # ★ 核心分類邏輯 ★
-                        # 檢查此案子的機關是否在「重點機關清單」中
-                        is_target_org = any(target in r['Org'] for target in org_keywords)
+                        # ★ 自動分類：檢查機關是否在「重點清單」中
+                        # 使用 any() 檢查此標案的 Org 是否包含 org_keywords 裡的任一字串
+                        is_target = any(target in r['Org'] for target in org_keywords)
                         
-                        if is_target_org:
-                            r['Tags'] = "★重點" # 前端會抓這個標記來分組
+                        if is_target:
+                            r['Tags'] = "★重點" # 前端網頁會抓這個標記來分組
                         else:
                             r['Tags'] = "其他"
                     
                     all_data.extend(res)
-                    time.sleep(0.5)
+                    time.sleep(1)
 
-            # 3. 處理結果
-            count = 0
+            # 3. 存檔與通知
             if all_data:
                 df = pd.DataFrame(all_data)
                 df.drop_duplicates(subset=['Link'], keep='first', inplace=True)
-                # 注意：這裡呼叫 upload_to_gsheet 時，要確保該函式支援傳入 sheet_name
-                # 若原本函式不支援，請修改 upload_to_gsheet 定義，加入 sheet_name 參數
-                client = get_google_client()
-                sheet = client.open_by_url(SHEET_URL).worksheet(config['target_sheet'])
-                existing_data = sheet.get_all_records()
-                existing_links = set(str(row['Link']) for row in existing_data if 'Link' in row)
                 
-                new_rows = []
-                new_data_for_notify = []
-
-                for index, row in df.iterrows():
-                    # 預算過濾
-                    try: budget_val = int(re.sub(r'[^\d]', '', row['Budget']))
-                    except: budget_val = 0
-                    if MIN_BUDGET > 0 and budget_val < MIN_BUDGET: continue
-
-                    if str(row['Link']) not in existing_links:
-                        row_data = [
-                            row['Date'], row['Org'], row['Title'], row['Link'],
-                            row['Deadline'], row['Budget'], row['Tags'], row['Source']
-                        ]
-                        new_rows.append(row_data)
-                        new_data_for_notify.append(row)
-                        existing_links.add(str(row['Link']))
+                # 傳入目標分頁名稱
+                count, new_df = upload_to_gsheet(df, config['target_sheet'])
                 
-                if new_rows:
-                    sheet.append_rows(new_rows)
-                    count = len(new_rows)
-                    # 發送通知
-                    send_google_chat(count, pd.DataFrame(new_data_for_notify)) # 這裡標題會共用，若要區分需修改 send_google_chat
-                    print(f"   ✅ {task_name} 完成：新增 {count} 筆")
+                # 發送通知 (標題帶入任務名稱)
+                if count > 0:
+                    title_text = f"{config['title']} (新增 {count} 筆)"
+                    send_google_chat(count, new_df) # 這裡會共用同一個 Webhook
                 else:
-                    print(f"   ✅ {task_name} 完成：資料已存在")
+                    print(f"   -> {task_name} 無新資料")
             else:
-                print(f"   ✅ {task_name} 完成：無資料")
+                print(f"   -> {task_name} 搜尋無結果")
 
+        # 任務結束，記錄日誌
         log_to_sheet("SUCCESS", "雙軌任務執行完畢")
 
     except Exception as e:
@@ -370,9 +338,11 @@ def main():
         print(error_msg)
         log_to_sheet("ERROR", error_msg)
     finally:
-        driver.quit()
+        try: driver.quit()
+        except: pass
 
 if __name__ == "__main__":
     main()
+
 
 
