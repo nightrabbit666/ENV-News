@@ -1,195 +1,643 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-Hant" data-bs-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎄 聖誕特輯：標案戰情室</title>
+    <title>🎅 聖誕特別版：標案戰情室</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;600;700&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
 
     <style>
-        /* === 聖誕主題 CSS === */
+        /* === 🎄 聖誕主題變數定義 (重新定義色彩) === */
         :root {
-            --xmas-red: #d42426;
-            --xmas-green: #165b33;
-            --xmas-gold: #f8b229;
-            --snow-color: #ffffff;
+            --bg-dark: #1a0f0f;       /* 深紅棕色背景，取代海軍藍 */
+            --bg-panel: #2b1a1a;      /* 深色面板 */
+            --accent-cyan: #165b33;   /* 聖誕綠 (取代原本的霓虹青) */
+            --accent-amber: #d42426;  /* 聖誕紅 (取代原本的琥珀色) */
+            --accent-gold: #f8b229;   /* 新增：聖誕金 (用於強調) */
+            --accent-red: #ff3366;    /* 保留原本的數碼紅用於緊急 */
+            --text-bright: #f0f0f0;   /* 米白色文字 */
+            --text-muted: #b0b0b0;    /* 次要文字 */
+            --font-tech: 'Chakra Petch', sans-serif;
+            --font-digital: 'Orbitron', sans-serif;
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: radial-gradient(ellipse at bottom, #1b2735 0%, #090a0f 100%);
-            color: #fff;
+            background-color: var(--bg-dark);
+            color: var(--text-bright);
+            font-family: var(--font-tech);
             min-height: 100vh;
-            overflow-x: hidden;
+            /* 替換背景為適合雪景的漸層 */
+            background-image: radial-gradient(ellipse at bottom, #1b2735 0%, #090a0f 100%);
+            padding-bottom: 50px;
             position: relative;
+            overflow-x: hidden; /* 防止雪花造成水平捲動 */
         }
 
-        /* === 雪花飄落效果 === */
+        /* === ❄️ 雪花特效 CSS === */
+        #snow-container {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 1; /* 在最底層背景之上 */
+        }
         .snow {
-            position: absolute;
-            width: 10px; height: 10px; background: var(--snow-color);
-            border-radius: 50%;
-            filter: drop-shadow(0 0 10px var(--snow-color));
+            position: absolute; width: 10px; height: 10px; background: white;
+            border-radius: 50%; filter: drop-shadow(0 0 10px white);
             animation: snowfall linear infinite;
         }
         @keyframes snowfall {
             0% { transform: translateY(-10vh) translateX(0); opacity: 1; }
             100% { transform: translateY(110vh) translateX(20px); opacity: 0.3; }
         }
-
-        /* === 標題區 === */
-        .xmas-header {
-            text-align: center; padding: 3rem 0;
-            background: linear-gradient(to bottom, var(--xmas-red), transparent);
-            border-bottom: 3px solid var(--xmas-gold);
+        
+        /* 讓主要內容浮在雪花上面 */
+        .container-fluid, #status-bar {
             position: relative; z-index: 10;
         }
+
+        /* === 🎅 聖誕裝飾圖示樣式 === */
+        .xmas-deco-container {
+            display: flex; align-items: center; gap: 15px; margin-right: 25px;
+        }
+        .xmas-icon {
+            height: 80px; /* 放大圖示 */
+            width: auto; transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5)); cursor: pointer;
+        }
+        .xmas-icon:hover {
+            transform: translateY(-5px) scale(1.1) rotate(5deg);
+            filter: drop-shadow(0 0 15px var(--accent-gold)); /* 發金色光 */
+        }
+
+        /* === 系統狀態條 === */
+        #status-bar { 
+            display: none; padding: 8px 20px; font-size: 0.9rem; text-align: center; 
+            color: white; font-weight: bold;
+            background-color: var(--accent-amber); /* 改為聖誕紅 */
+            box-shadow: 0 0 15px var(--accent-amber);
+        }
+        .status-indicator-container {
+            font-family: var(--font-digital); font-size: 0.9rem;
+            color: var(--accent-cyan); /* 改為聖誕綠 */
+            text-shadow: 0 0 5px var(--accent-cyan);
+        }
+
+        /* === 1. 頂部標題列 (聖誕配色) === */
+        .war-room-header {
+            padding: 1.5rem 0; margin-bottom: 2rem;
+            /* 改為紅綠漸層邊框和背景 */
+            border-bottom: 2px solid var(--accent-gold);
+            background: linear-gradient(90deg, rgba(26,15,15,0) 0%, rgba(22,91,51,0.2) 50%, rgba(26,15,15,0) 100%);
+        }
         .header-title {
-            font-size: 3rem; font-weight: 800; color: var(--xmas-gold);
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
-            display: flex; align-items: center; justify-content: center;
+            font-family: var(--font-digital); font-weight: 700; letter-spacing: 2px;
+            text-transform: uppercase; color: var(--accent-gold); /* 金色標題 */
+            text-shadow: 0 0 10px rgba(248, 178, 41, 0.5);
         }
-        .santa-icon { width: 80px; margin-right: 15px; transform: rotate(-10deg); }
-        .header-subtitle { font-size: 1.2rem; color: #eee; margin-top: 10px; }
 
-        /* === 聖誕統計卡 === */
-        .xmas-card {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(5px);
-            border: 2px solid var(--xmas-gold);
-            border-radius: 15px; padding: 20px; text-align: center;
-            transition: transform 0.3s;
+        /* === 2. 控制區 (聖誕配色) === */
+        .control-panel {
+            background: rgba(43, 26, 26, 0.6); /* 深紅色半透明 */
+            padding: 2rem; border-radius: 16px;
+            border: 2px solid var(--accent-cyan); /* 綠色邊框 */
+            backdrop-filter: blur(10px); max-width: 900px; margin: 0 auto 3rem auto;
+            box-shadow: 0 0 20px rgba(22, 91, 51, 0.2);
         }
-        .xmas-card:hover { transform: translateY(-10px) scale(1.05); background: rgba(255, 255, 255, 0.2); }
-        .stat-number { font-size: 2.5rem; font-weight: bold; color: var(--xmas-gold); text-shadow: 0 0 10px var(--xmas-red); }
-        .stat-label { font-size: 1.1rem; color: #ddd; }
-        .card-deco { position: absolute; top: -20px; right: -20px; width: 50px; transform: rotate(15deg); }
-
-        /* === 返回按鈕 === */
-        .btn-back {
-            position: fixed; bottom: 30px; left: 30px; z-index: 99;
-            background-color: var(--xmas-green); color: white;
-            border: 2px solid var(--xmas-gold); border-radius: 30px; padding: 10px 25px;
-            font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-            transition: all 0.3s;
+        .search-input-cyber {
+            background-color: rgba(26, 15, 15, 0.8);
+            border: 2px solid var(--accent-gold); /* 金色邊框 */
+            color: var(--text-bright); padding: 15px 25px; font-size: 1.1rem;
+            border-radius: 50px; transition: all 0.3s ease;
+            box-shadow: 0 0 10px rgba(248, 178, 41, 0.3);
         }
-        .btn-back:hover { background-color: var(--xmas-red); transform: scale(1.1); color: var(--xmas-gold); }
+        .search-input-cyber:focus {
+            background-color: rgba(26, 15, 15, 1); color: white; outline: none;
+            box-shadow: 0 0 20px rgba(248, 178, 41, 0.6); border-color: var(--accent-gold);
+        }
+        .keyword-btn {
+            background: transparent; border: 1px solid var(--text-muted); color: var(--text-muted);
+            padding: 8px 16px; border-radius: 30px; font-size: 0.9rem; cursor: pointer;
+            transition: all 0.3s; font-family: var(--font-digital); letter-spacing: 1px; margin: 4px;
+        }
+        .keyword-btn:hover, .keyword-btn.active {
+            border-color: var(--accent-gold); color: var(--bg-dark);
+            background: var(--accent-gold); /* 金色按鈕 */
+            box-shadow: 0 0 15px rgba(248, 178, 41, 0.5); font-weight: bold;
+        }
+        .keyword-badge-count {
+            background-color: var(--accent-cyan); color: white; /* 綠底白字 */
+            font-size: 0.75rem; padding: 2px 6px; border-radius: 10px; margin-left: 5px;
+        }
 
-        /* === footer === */
-        .footer-text { text-align: center; padding: 20px; color: #aaa; font-size: 0.9rem; position: relative; z-index: 10;}
+        /* === 3. 統計數據區 (聖誕配色) === */
+        .stat-card-cyber {
+            background: var(--bg-panel); border: 2px solid var(--accent-cyan); /* 綠色邊框 */
+            border-radius: 12px; padding: 25px; text-align: center; position: relative;
+            overflow: hidden; transition: transform 0.3s; height: 100%;
+        }
+        .stat-card-cyber:hover {
+            transform: translateY(-5px); border-color: var(--accent-gold); /* hover變金色 */
+            box-shadow: 0 0 15px rgba(248, 178, 41, 0.3) inset;
+        }
+        .stat-card-cyber::after {
+            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            /* 改為紅綠掃描線 */
+            background: linear-gradient(transparent 50%, rgba(212, 36, 38, 0.05) 50%);
+            background-size: 100% 4px; pointer-events: none;
+        }
+        .stat-num-digital {
+            font-family: var(--font-digital); font-size: 2.8rem; font-weight: 700;
+            display: block; margin-bottom: 10px; text-shadow: 0 0 10px currentColor;
+        }
+        .num-red { color: var(--accent-amber); } /* 今日：聖誕紅 */
+        .num-blue { color: var(--accent-cyan); }  /* 歷史：聖誕綠 */
+        .num-white { color: var(--accent-gold); } /* 總數：聖誕金 */
+        .stat-label { color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; font-size: 0.85rem; }
+
+        /* === 4. 導航分頁 (聖誕配色) === */
+        .nav-pills-cyber .nav-link {
+            color: var(--text-muted); background: rgba(43, 26, 26, 0.5);
+            border: 1px solid var(--accent-cyan); border-radius: 50px;
+            padding: 10px 25px; margin: 0 5px; font-family: var(--font-tech);
+            letter-spacing: 1px; transition: all 0.3s;
+        }
+        .nav-pills-cyber .nav-link:hover { color: var(--accent-gold); border-color: var(--accent-gold); }
+        .nav-pills-cyber .nav-link.active {
+            background: var(--accent-cyan); color: white; font-weight: 700; /* 綠底白字 */
+            box-shadow: 0 0 15px rgba(22, 91, 51, 0.6); border-color: var(--accent-cyan);
+        }
+
+        /* === 5. 資料列表 (聖誕配色面板) === */
+        .tender-card-tech {
+            background: var(--bg-panel); border: 1px solid var(--accent-cyan);
+            border-left: 4px solid; border-radius: 8px; margin-bottom: 20px;
+            padding: 20px; position: relative; transition: all 0.3s;
+        }
+        .tender-card-tech:hover {
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3), 0 0 15px rgba(22, 91, 51, 0.2) inset;
+            transform: scale(1.01); border-color: var(--accent-gold);
+        }
+        .source-pis { border-left-color: var(--accent-amber); } /* 採購網-聖誕紅 */
+        .source-env { border-left-color: var(--accent-cyan); }  /* 環境部-聖誕綠 */
+
+        .org-badge-tech {
+            background: rgba(22, 91, 51, 0.2); color: var(--accent-cyan);
+            border: 1px solid var(--accent-cyan); padding: 4px 10px; border-radius: 4px;
+            font-size: 0.8rem; text-transform: uppercase;
+        }
+        .source-pis .org-badge-tech {
+            background: rgba(212, 36, 38, 0.2); color: var(--accent-amber); border-color: var(--accent-amber);
+        }
+        .tag-badge-tech {
+             background: rgba(255, 255, 255, 0.1); color: var(--text-muted);
+             border: 1px solid var(--text-muted); padding: 4px 10px; border-radius: 4px;
+             font-size: 0.8rem; margin-left: 8px;
+        }
+        .tender-title-tech {
+            font-size: 1.25rem; color: var(--text-bright); text-decoration: none;
+            display: block; margin: 12px 0; font-weight: 600;
+        }
+        .tender-title-tech:hover { color: var(--accent-gold); text-shadow: 0 0 10px rgba(248, 178, 41, 0.5); }
+
+        .info-row-tech { display: flex; flex-wrap: wrap; gap: 15px; margin-top: 15px; align-items: center; }
+        .info-item-tech {
+            background: rgba(26, 15, 15, 0.6); border: 1px solid var(--accent-cyan);
+            padding: 6px 12px; border-radius: 30px; font-size: 0.9rem; color: var(--text-muted);
+            display: flex; align-items: center;
+        }
+        .info-item-tech i { margin-right: 8px; color: var(--accent-cyan); opacity: 0.8; }
+        .budget-text { color: var(--accent-gold); font-family: var(--font-digital); font-weight: 700; text-shadow: 0 0 5px rgba(248, 178, 41, 0.5);}
+        .deadline-text { color: var(--accent-amber); font-weight: 600; }
+
+        /* 分析按鈕 (聖誕漸層) */
+        .btn-analyze-tech {
+            /* 紅綠漸層 */
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-amber));
+            border: none; color: white; padding: 6px 15px; border-radius: 30px;
+            font-size: 0.85rem; cursor: pointer; transition: all 0.3s;
+            display: inline-flex; align-items: center; box-shadow: 0 0 10px rgba(22, 91, 51, 0.4);
+        }
+        .btn-analyze-tech:hover { box-shadow: 0 0 15px var(--accent-gold); transform: scale(1.05); }
+        .btn-analyze-tech:disabled { background: #475569; box-shadow: none; cursor: not-allowed; opacity: 0.7; transform: none;}
+        
+        .btn-view-tech {
+             background: transparent; border: 1px solid var(--accent-gold); color: var(--accent-gold);
+             padding: 6px 15px; border-radius: 30px; font-size: 0.85rem; text-decoration: none; transition: all 0.3s;
+        }
+        .btn-view-tech:hover { background: var(--accent-gold); color: var(--bg-dark); box-shadow: 0 0 15px rgba(248, 178, 41, 0.5); }
+
+        /* 其他元素 */
+        .date-separator { display: flex; align-items: center; margin: 30px 0 20px 0; color: var(--text-muted); font-family: var(--font-digital); }
+        .date-separator::before, .date-separator::after { content: ""; flex: 1; border-bottom: 1px solid var(--accent-cyan); }
+        .date-text { background-color: var(--bg-panel); padding: 5px 15px; border-radius: 20px; border: 1px solid var(--accent-cyan); }
+        .loading-cyber { text-align: center; padding: 60px; color: var(--accent-cyan); opacity: 0.8; }
+        .empty-state { text-align: center; padding: 80px; color: var(--text-muted); opacity: 0.6; }
+        .spinner-border-sm { width: 0.8rem; height: 0.8rem; border-width: 0.15em; margin-right: 5px; }
+        
+        /* 返回主頁按鈕 */
+        .btn-back-home {
+            position: fixed; bottom: 30px; right: 30px; z-index: 99;
+            background-color: var(--accent-cyan); color: white;
+            border: 2px solid var(--accent-gold); border-radius: 50px; padding: 12px 25px;
+            font-weight: bold; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            transition: all 0.3s; display: flex; align-items: center;
+        }
+        .btn-back-home:hover { background-color: var(--accent-amber); transform: scale(1.1); color: var(--accent-gold); box-shadow: 0 0 20px var(--accent-gold); text-decoration: none;}
     </style>
 </head>
 <body>
 
     <div id="snow-container"></div>
 
-    <header class="xmas-header">
-        <h1 class="header-title">
-            <img src="santa.png" alt="Santa" class="santa-icon">
-            Merry Christmas & Happy Tender!
-        </h1>
-        <p class="header-subtitle">政府標案戰情室 - 2024 聖誕特別版</p>
-    </header>
+    <div id="status-bar"></div>
 
-    <div class="container mt-5" style="position: relative; z-index: 10;">
-        <h3 class="text-center mb-4" style="color: var(--xmas-gold);">🎁 您的年度標案禮物包</h3>
-        <div class="row g-4 justify-content-center">
+    <div class="container-fluid px-lg-5">
+        <header class="war-room-header d-flex justify-content-between align-items-center">
+            <h1 class="header-title mb-0">
+                <i class="fas fa-tree me-2" style="color: var(--accent-cyan);"></i>聖誕戰情室
+            </h1>
+            <div class="d-flex align-items-center">
+                <div class="xmas-deco-container d-none d-md-flex">
+                    <img src="santa_eco.png" alt="Eco Santa" class="xmas-icon" title="環保聖誕老人來送案子了！">
+                    <img src="snowman_eco.png" alt="Eco Snowman" class="xmas-icon" title="環保雪人幫您盯著數據！">
+                </div>
+
+                <div class="d-flex align-items-center" id="last-update-container" style="display: none;">
+                    <div class="status-indicator-container">
+                        <i class="fas fa-check-circle me-1"></i>SYSTEM ONLINE
+                        <span class="ms-2 text-muted small" id="last-update-time"></span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <section class="control-panel mb-5">
+            <div class="mb-4 text-center">
+                <h5 style="color: var(--accent-gold); margin-bottom: 20px;"><i class="fas fa-gift me-2"></i>搜尋您的年度標案禮物</h5>
+                <input type="text" id="searchInput" class="form-control search-input-cyber" placeholder="輸入關鍵字，挖掘聖誕商機...">
+            </div>
+            <div class="d-flex flex-wrap justify-content-center align-items-center">
+                <span class="text-muted me-3" style="font-size: 0.9rem; letter-spacing: 1px;">熱門關鍵字 ></span>
+                <div id="keyword-badges" class="d-flex flex-wrap justify-content-center gap-2">
+                    </div>
+            </div>
+        </section>
+
+        <section class="row g-4 mb-5 justify-content-center mx-auto" style="max-width: 1200px;">
             <div class="col-md-4">
-                <div class="xmas-card">
-                    <img src="snowman.png" alt="Snowman" class="card-deco">
-                    <i class="fas fa-gift fa-3x mb-3" style="color: var(--xmas-red);"></i>
-                    <div class="stat-number" id="totalCount">0</div>
-                    <div class="stat-label">全年監控總數</div>
+                <div class="stat-card-cyber">
+                    <i class="fas fa-hat-santa fa-2x mb-2" style="color: var(--accent-amber); opacity: 0.8;"></i>
+                    <span class="stat-num-digital num-red" id="todayCount">0</span>
+                    <span class="stat-label">今日新增商機</span>
                 </div>
             </div>
             <div class="col-md-4">
-                <div class="xmas-card">
-                    <i class="fas fa-tree fa-3x mb-3" style="color: var(--xmas-green);"></i>
-                    <div class="stat-number" id="envCount">0</div>
-                    <div class="stat-label">環境部/循環署相關</div>
+                <div class="stat-card-cyber">
+                    <i class="fas fa-candy-cane fa-2x mb-2" style="color: var(--accent-cyan); opacity: 0.8;"></i>
+                    <span class="stat-num-digital num-blue" id="historyCount">0</span>
+                    <span class="stat-label">歷史資料存量</span>
                 </div>
             </div>
             <div class="col-md-4">
-                <div class="xmas-card" style="border-color: var(--xmas-red);">
-                    <i class="fas fa-candy-cane fa-3x mb-3" style="color: #fff;"></i>
-                    <div class="stat-number" id="decemberCount">0</div>
-                    <div class="stat-label">本月(12月) 忙碌指數</div>
+                <div class="stat-card-cyber">
+                    <i class="fas fa-star fa-2x mb-2" style="color: var(--accent-gold); opacity: 0.8;"></i>
+                    <span class="stat-num-digital num-white" id="totalCount">0</span>
+                    <span class="stat-label">監控總筆數</span>
+                </div>
+            </div>
+        </section>
+
+        <ul class="nav nav-pills nav-pills-cyber mb-4 justify-content-center" id="pills-tab" role="tablist">
+            <li class="nav-item"><button class="nav-link active" id="pills-today-tab" data-bs-toggle="pill" data-bs-target="#pills-today">🎁 今日快訊</button></li>
+            <li class="nav-item"><button class="nav-link" id="pills-history-tab" data-bs-toggle="pill" data-bs-target="#pills-history">🗄️ 歷史查詢</button></li>
+            <li class="nav-item"><button class="nav-link" id="pills-expired-tab" data-bs-toggle="pill" data-bs-target="#pills-expired">⛄ 已截標案件</button></li>
+        </ul>
+
+        <div class="tab-content mx-auto" style="max-width: 1000px;">
+            <div class="tab-pane fade show active" id="pills-today">
+                <div id="container-today">
+                    <div class="loading-cyber"><i class="fas fa-snowflake fa-spin fa-3x mb-3"></i><br>正在雪地中搜尋最新資料...</div>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="pills-history">
+                <div id="container-history">
+                    <div class="loading-cyber"><i class="fas fa-snowflake fa-spin fa-3x mb-3"></i><br>正在挖掘歷史資料庫...</div>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="pills-expired">
+                <div id="container-expired">
+                    <div class="loading-cyber"><i class="fas fa-snowflake fa-spin fa-3x mb-3"></i><br>讀取封存資料...</div>
                 </div>
             </div>
         </div>
-        <p class="text-center mt-5" style="font-size: 1.1rem;">
-            <i class="fas fa-star" style="color: var(--xmas-gold);"></i>
-            願新的一年，您的每個提案都像聖誕禮物一樣令人驚喜！
-            <i class="fas fa-star" style="color: var(--xmas-gold);"></i>
-        </p>
+
     </div>
 
-    <div class="footer-text">
-        Built with <i class="fas fa-heart text-danger"></i> by 標案戰情室團隊
-    </div>
-
-    <a href="index.html" class="btn-back">
-        <i class="fas fa-arrow-left me-2"></i>返回戰情室
+    <a href="index1217.html" class="btn-back-home">
+        <i class="fas fa-arrow-left me-2"></i>返回主戰情室
     </a>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
     <script>
         // ==========================================
-        // ⚠️ 設定區：維持原有的 CSV 連結
+        // ⚠️ 設定區：與主頁完全相同
         // ==========================================
         const sheetCsvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSL9csppWjrqt8UOwwOwDxI4WON1aujg78zBush52aLIUeFubdpp9Au93c6cgf_qDLuRRX2NP0OvTkJ/pub?gid=0&single=true&output=csv';
+        const logCsvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSL9csppWjrqt8UOwwOwDxI4WON1aujg78zBush52aLIUeFubdpp9Au93c6cgf_qDLuRRX2NP0OvTkJ/pub?gid=469067754&single=true&output=csv'; 
+        const historyCsvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSL9csppWjrqt8UOwwOwDxI4WON1aujg78zBush52aLIUeFubdpp9Au93c6cgf_qDLuRRX2NP0OvTkJ/pub?gid=175963084&single=true&output=csv'; 
         // ==========================================
 
-        // 1. 產生雪花
+        // ★ 新增：產生雪花特效 JS
         function createSnow() {
             const container = document.getElementById('snow-container');
             const snowCount = 50; // 雪花數量
             for (let i = 0; i < snowCount; i++) {
                 const snow = document.createElement('div');
                 snow.className = 'snow';
-                // 隨機大小、位置和動畫時間
-                const size = Math.random() * 5 + 2 + 'px';
-                snow.style.width = size;
-                snow.style.height = size;
-                snow.style.left = Math.random() * 100 + 'vw';
-                snow.style.animationDuration = Math.random() * 5 + 5 + 's'; // 5~10秒
-                snow.style.animationDelay = Math.random() * 5 + 's';
-                snow.style.opacity = Math.random();
+                const size = Math.random() * 8 + 4 + 'px'; // 隨機大小 4-12px
+                snow.style.width = size; snow.style.height = size;
+                snow.style.left = Math.random() * 100 + 'vw'; // 隨機水平位置
+                snow.style.animationDuration = Math.random() * 10 + 5 + 's'; // 5-15秒飄落時間
+                snow.style.animationDelay = Math.random() * 5 + 's'; // 隨機延遲
+                snow.style.opacity = Math.random() * 0.7 + 0.3; // 隨機透明度
                 container.appendChild(snow);
             }
         }
 
-        // 2. 讀取數據並顯示
-        function loadData() {
-            Papa.parse(sheetCsvUrl, {
+        // ==========================================
+        // 以下 JavaScript 邏輯與主頁完全相同 (除了 SweetAlert 的配色)
+        // ==========================================
+
+        let allData = [];
+        let historyDataCache = null;
+        let todayStr = "";
+
+        document.addEventListener('DOMContentLoaded', function() {
+            createSnow(); // ★ 啟動下雪
+            const dateObj = new Date();
+            const year = dateObj.getFullYear() - 1911;
+            const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const day = String(dateObj.getDate()).padStart(2, '0');
+            todayStr = `${year}/${month}/${day}`;
+            
+            fetchData();
+            checkSystemStatus();
+            
+            document.getElementById('searchInput').addEventListener('input', function(e) {
+                const keyword = e.target.value;
+                document.querySelectorAll('.keyword-btn').forEach(btn => btn.classList.remove('active'));
+                renderList(filterData(allData, 'today', keyword), 'container-today', false);
+                renderList(filterData(allData, 'history', keyword), 'container-history', true);
+                renderList(filterData(allData, 'expired', keyword), 'container-expired', true);
+            });
+        });
+
+        function checkSystemStatus() {
+            Papa.parse(logCsvUrl, {
                 download: true, header: true,
                 complete: function(results) {
-                    const data = results.data.filter(item => item.Title);
-                    
-                    // 統計總數
-                    document.getElementById('totalCount').innerText = data.length;
-
-                    // 統計環境相關 (關鍵字篩選)
-                    const envKeywords = ['環境', '循環', '回收', '廢棄物'];
-                    const envCount = data.filter(item => {
-                        const text = (item.Org + item.Title).toLowerCase();
-                        return envKeywords.some(kw => text.includes(kw));
-                    }).length;
-                    document.getElementById('envCount').innerText = envCount;
-
-                    // 統計 12 月份的案子 (趣味數據)
-                    const decCount = data.filter(item => item.Date && item.Date.includes('/12/')).length;
-                    document.getElementById('decemberCount').innerText = decCount;
+                    const logs = results.data.filter(r => r.Time);
+                    if (logs.length > 0) {
+                        const lastLog = logs[logs.length - 1];
+                        if (lastLog.Status === 'ERROR') {
+                            const statusBar = document.getElementById('status-bar');
+                            statusBar.innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i> 系統異常警告：${lastLog.Message} (${lastLog.Time})`;
+                            statusBar.style.display = 'block';
+                        } else {
+                            document.getElementById('last-update-container').style.display = 'flex';
+                            document.getElementById('last-update-time').innerText = `(更新: ${lastLog.Time})`;
+                        }
+                    }
                 }
             });
         }
 
-        // 初始化
-        document.addEventListener('DOMContentLoaded', function() {
-            createSnow();
-            loadData();
-        });
+        function fetchData() {
+            Papa.parse(sheetCsvUrl, {
+                download: true, header: true,
+                complete: function(results) {
+                    allData = results.data.filter(item => item.Title && item.Link).reverse();
+                    updateStats();
+                    renderKeywords();
+                    renderList(filterData(allData, 'today', ''), 'container-today', false);
+                    renderList(filterData(allData, 'history', ''), 'container-history', true);
+                    renderList(filterData(allData, 'expired', ''), 'container-expired', true);
+                },
+                error: function(err) {
+                    document.getElementById('container-today').innerHTML = '<div class="loading-cyber text-danger"><i class="fas fa-times-circle fa-2x mb-3"></i><br>資料讀取失敗，請檢查連線</div>';
+                }
+            });
+        }
+
+        function renderKeywords() {
+            const keywordMap = {};
+            allData.forEach(item => {
+                if (item.Tags) {
+                    let parts = item.Tags.split('-');
+                    let kw = parts.length > 1 ? parts[1] : item.Tags;
+                    keywordMap[kw] = (keywordMap[kw] || 0) + 1;
+                }
+            });
+            const container = document.getElementById('keyword-badges');
+            let html = '';
+            Object.entries(keywordMap).sort((a, b) => b[1] - a[1]).forEach(([key, count]) => {
+                html += `<button class="keyword-btn" onclick="setSearch('${key}', this)">${key} <span class="keyword-badge-count">${count}</span></button>`;
+            });
+            container.innerHTML = html;
+        }
+
+        function setSearch(keyword, btnElement) {
+            const searchInput = document.getElementById('searchInput');
+            searchInput.value = keyword;
+            searchInput.dispatchEvent(new Event('input'));
+            document.querySelectorAll('.keyword-btn').forEach(btn => btn.classList.remove('active'));
+            if(btnElement) btnElement.classList.add('active');
+        }
+
+        function filterData(data, type, keyword) {
+            const now = new Date();
+            now.setHours(0,0,0,0);
+            return data.filter(item => {
+                const itemDate = item.Date || "";
+                const matchDate = itemDate.includes(todayStr);
+                let isExpired = false;
+                if (item.Deadline) {
+                    const parts = item.Deadline.split('/');
+                    if (parts.length === 3) {
+                        const deadDate = new Date(parseInt(parts[0]) + 1911, parseInt(parts[1]) - 1, parseInt(parts[2]));
+                        if (deadDate < now) isExpired = true;
+                    }
+                }
+                if (type === 'today') { if (!matchDate) return false; } 
+                else if (type === 'history') { if (matchDate || isExpired) return false; } 
+                else if (type === 'expired') { if (!isExpired) return false; }
+                if (keyword) {
+                    const searchStr = (item.Title + item.Tags + item.Org + item.Source + item.Deadline).toLowerCase();
+                    if (!searchStr.includes(keyword.toLowerCase())) return false;
+                }
+                return true;
+            });
+        }
+
+        async function startAnalysis(btnId, title, org) {
+            const btn = document.getElementById(btnId);
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            // ★ 修改 Loading 圖示為雪花
+            btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 聖誕精靈搜尋中...`;
+
+            try {
+                if (!historyDataCache) {
+                    await new Promise((resolve, reject) => {
+                        Papa.parse(historyCsvUrl, {
+                            download: true, header: true,
+                            complete: function(results) {
+                                historyDataCache = results.data;
+                                console.log("歷史資料庫下載完成", historyDataCache.length);
+                                resolve();
+                            },
+                            error: function(err) { reject(err); }
+                        });
+                    });
+                }
+                await new Promise(r => setTimeout(r, 600));
+                const result = performAnalysis(title, org);
+                showResultModal(result, title);
+            } catch (error) {
+                console.error(error);
+                // ★ 修改 SweetAlert 配色
+                Swal.fire({ icon: 'error', title: '讀取失敗', text: '請檢查 History CSV 連結是否正確', background: '#2b1a1a', color: '#f0f0f0' });
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        function performAnalysis(currentTitle, currentOrg) {
+            const coreTitle = currentTitle.replace(/\d{3}年度?|\d{4}年?/g, "").replace(/公告|招標|案|計畫|勞務|採購/g, "").trim();
+            const matches = historyDataCache.filter(row => {
+                const rowOrg = row['Org'] || row['機關名稱'];
+                const rowTitle = row['Title'] || row['標案名稱'];
+                return rowOrg === currentOrg && rowTitle && rowTitle.includes(coreTitle);
+            });
+
+            if (matches.length === 0) return null;
+
+            matches.sort((a, b) => (b.Date || "").localeCompare(a.Date || ""));
+            const lastCase = matches[0];
+            let topWinner = "資料庫無紀錄";
+            const winners = matches.map(m => m.Winner || m.得標廠商).filter(w => w);
+            if(winners.length > 0) {
+                const counts = {};
+                winners.forEach(w => counts[w] = (counts[w] || 0) + 1);
+                topWinner = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b);
+            }
+
+            return {
+                count: matches.length,
+                lastDate: lastCase.Date,
+                lastTitle: lastCase.Title || lastCase.標案名稱,
+                lastAmount: lastCase.Budget || lastCase.預算金額,
+                lastWinner: lastCase.Winner || lastCase.得標廠商 || "無資料",
+                dominantWinner: topWinner
+            };
+        }
+
+        function showResultModal(data, currentTitle) {
+            if (!data) {
+                Swal.fire({
+                    icon: 'info', title: '查無歷史關聯',
+                    text: '這似乎是一個全新的案件，過去資料庫中沒有相似紀錄。',
+                    // ★ 修改 SweetAlert 配色為聖誕紅綠
+                    confirmButtonColor: '#165b33',
+                    background: '#2b1a1a', color: '#f0f0f0'
+                });
+                return;
+            }
+            Swal.fire({
+                title: '🎅 聖誕戰情分析報告', // ★ 修改標題
+                html: `
+                    <div style="text-align: left; font-size: 0.95rem; color: #f0f0f0;">
+                        <p class="mb-2"><strong>🎁 目前標案：</strong><br>${currentTitle}</p>
+                        <hr style="border-color: var(--accent-gold);">
+                        <p class="mb-1"><strong>🔎 歷史關聯：</strong> 發現 <span style="color:var(--accent-amber); font-weight:bold;">${data.count}</span> 筆相似案件</p>
+                        <p class="mb-1"><strong>📅 最近一次：</strong> ${data.lastDate}</p>
+                        <p class="mb-1"><strong>📝 歷史案名：</strong> ${data.lastTitle}</p>
+                        <p class="mb-1"><strong>💰 歷史金額：</strong> <span style="color:var(--accent-gold); font-weight:bold;">${data.lastAmount}</span></p>
+                        <div class="mt-3 p-2 rounded border" style="background: rgba(22, 91, 51, 0.2); border-color: var(--accent-cyan);">
+                            <p class="mb-0"><strong>🏆 歷年霸主：</strong> <span style="color:var(--accent-cyan); font-weight:bold;">${data.dominantWinner}</span></p>
+                            <small style="color:var(--text-muted);">(出現頻率最高的廠商)</small>
+                        </div>
+                    </div>
+                `,
+                icon: 'success',
+                confirmButtonText: '了解情資', confirmButtonColor: '#165b33', // ★ 修改按鈕顏色
+                background: '#2b1a1a', color: '#f0f0f0'
+            });
+        }
+
+        function renderList(data, containerId, groupByDate) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            if (data.length === 0) {
+                // ★ 修改空狀態圖示
+                container.innerHTML = '<div class="empty-state"><i class="fas fa-gift fa-3x mb-3"></i><br>目前沒有資料禮物</div>';
+                return;
+            }
+
+            let html = '';
+            let lastDate = '';
+
+            data.forEach((item, index) => {
+                if (groupByDate && item.Date !== lastDate) {
+                    html += `<div class="date-separator"><span class="date-text"><i class="far fa-calendar-alt me-2"></i>${item.Date}</span></div>`;
+                    lastDate = item.Date;
+                }
+
+                const isPis = item.Source && item.Source.includes("採購");
+                const borderClass = isPis ? 'source-pis' : 'source-env';
+                const btnId = `analyze-${containerId}-${index}`;
+                const orgName = item.Org || item.Source; 
+
+                html += `
+                    <div class="tender-card-tech ${borderClass}">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <div class="mb-2">
+                                    <span class="org-badge-tech me-2"><i class="fas fa-building me-1"></i>${orgName}</span>
+                                    <span class="tag-badge-tech"><i class="fas fa-tag me-1"></i>${item.Tags || '一般'}</span>
+                                    <button id="${btnId}" class="btn-analyze-tech ms-3" onclick="startAnalysis('${btnId}', '${item.Title}', '${item.Org}')">
+                                        <i class="fas fa-chart-line me-1"></i>戰情分析
+                                    </button>
+                                </div>
+                                <a href="${item.Link}" target="_blank" class="tender-title-tech">${item.Title}</a>
+                                <div class="info-row-tech">
+                                    ${item.Budget ? `<div class="info-item-tech"><i class="fas fa-coins"></i><span class="budget-text">$${item.Budget}</span></div>` : ''}
+                                    ${item.Deadline ? `<div class="info-item-tech"><i class="fas fa-hourglass-half"></i><span class="deadline-text">截止: ${item.Deadline}</span></div>` : ''}
+                                    ${!groupByDate ? `<div class="info-item-tech"><i class="far fa-clock"></i>${item.Date}</div>` : ''}
+                                </div>
+                            </div>
+                            <div class="ms-3 d-none d-sm-block align-self-center">
+                                <a href="${item.Link}" target="_blank" class="btn-view-tech">查看公告</a>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function updateStats() {
+            document.getElementById('totalCount').innerText = allData.length;
+            const todayCount = allData.filter(item => item.Date && item.Date.includes(todayStr)).length;
+            document.getElementById('todayCount').innerText = todayCount;
+            document.getElementById('historyCount').innerText = allData.length - todayCount;
+        }
     </script>
 </body>
 </html>
