@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎄 聖誕特輯：標案戰情室</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+
+    <style>
+        /* === 聖誕主題 CSS === */
+        :root {
+            --xmas-red: #d42426;
+            --xmas-green: #165b33;
+            --xmas-gold: #f8b229;
+            --snow-color: #ffffff;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: radial-gradient(ellipse at bottom, #1b2735 0%, #090a0f 100%);
+            color: #fff;
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* === 雪花飄落效果 === */
+        .snow {
+            position: absolute;
+            width: 10px; height: 10px; background: var(--snow-color);
+            border-radius: 50%;
+            filter: drop-shadow(0 0 10px var(--snow-color));
+            animation: snowfall linear infinite;
+        }
+        @keyframes snowfall {
+            0% { transform: translateY(-10vh) translateX(0); opacity: 1; }
+            100% { transform: translateY(110vh) translateX(20px); opacity: 0.3; }
+        }
+
+        /* === 標題區 === */
+        .xmas-header {
+            text-align: center; padding: 3rem 0;
+            background: linear-gradient(to bottom, var(--xmas-red), transparent);
+            border-bottom: 3px solid var(--xmas-gold);
+            position: relative; z-index: 10;
+        }
+        .header-title {
+            font-size: 3rem; font-weight: 800; color: var(--xmas-gold);
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .santa-icon { width: 80px; margin-right: 15px; transform: rotate(-10deg); }
+        .header-subtitle { font-size: 1.2rem; color: #eee; margin-top: 10px; }
+
+        /* === 聖誕統計卡 === */
+        .xmas-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+            border: 2px solid var(--xmas-gold);
+            border-radius: 15px; padding: 20px; text-align: center;
+            transition: transform 0.3s;
+        }
+        .xmas-card:hover { transform: translateY(-10px) scale(1.05); background: rgba(255, 255, 255, 0.2); }
+        .stat-number { font-size: 2.5rem; font-weight: bold; color: var(--xmas-gold); text-shadow: 0 0 10px var(--xmas-red); }
+        .stat-label { font-size: 1.1rem; color: #ddd; }
+        .card-deco { position: absolute; top: -20px; right: -20px; width: 50px; transform: rotate(15deg); }
+
+        /* === 返回按鈕 === */
+        .btn-back {
+            position: fixed; bottom: 30px; left: 30px; z-index: 99;
+            background-color: var(--xmas-green); color: white;
+            border: 2px solid var(--xmas-gold); border-radius: 30px; padding: 10px 25px;
+            font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            transition: all 0.3s;
+        }
+        .btn-back:hover { background-color: var(--xmas-red); transform: scale(1.1); color: var(--xmas-gold); }
+
+        /* === footer === */
+        .footer-text { text-align: center; padding: 20px; color: #aaa; font-size: 0.9rem; position: relative; z-index: 10;}
+    </style>
+</head>
+<body>
+
+    <div id="snow-container"></div>
+
+    <header class="xmas-header">
+        <h1 class="header-title">
+            <img src="santa.png" alt="Santa" class="santa-icon">
+            Merry Christmas & Happy Tender!
+        </h1>
+        <p class="header-subtitle">政府標案戰情室 - 2024 聖誕特別版</p>
+    </header>
+
+    <div class="container mt-5" style="position: relative; z-index: 10;">
+        <h3 class="text-center mb-4" style="color: var(--xmas-gold);">🎁 您的年度標案禮物包</h3>
+        <div class="row g-4 justify-content-center">
+            <div class="col-md-4">
+                <div class="xmas-card">
+                    <img src="snowman.png" alt="Snowman" class="card-deco">
+                    <i class="fas fa-gift fa-3x mb-3" style="color: var(--xmas-red);"></i>
+                    <div class="stat-number" id="totalCount">0</div>
+                    <div class="stat-label">全年監控總數</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="xmas-card">
+                    <i class="fas fa-tree fa-3x mb-3" style="color: var(--xmas-green);"></i>
+                    <div class="stat-number" id="envCount">0</div>
+                    <div class="stat-label">環境部/循環署相關</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="xmas-card" style="border-color: var(--xmas-red);">
+                    <i class="fas fa-candy-cane fa-3x mb-3" style="color: #fff;"></i>
+                    <div class="stat-number" id="decemberCount">0</div>
+                    <div class="stat-label">本月(12月) 忙碌指數</div>
+                </div>
+            </div>
+        </div>
+        <p class="text-center mt-5" style="font-size: 1.1rem;">
+            <i class="fas fa-star" style="color: var(--xmas-gold);"></i>
+            願新的一年，您的每個提案都像聖誕禮物一樣令人驚喜！
+            <i class="fas fa-star" style="color: var(--xmas-gold);"></i>
+        </p>
+    </div>
+
+    <div class="footer-text">
+        Built with <i class="fas fa-heart text-danger"></i> by 標案戰情室團隊
+    </div>
+
+    <a href="index.html" class="btn-back">
+        <i class="fas fa-arrow-left me-2"></i>返回戰情室
+    </a>
+
+    <script>
+        // ==========================================
+        // ⚠️ 設定區：維持原有的 CSV 連結
+        // ==========================================
+        const sheetCsvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSL9csppWjrqt8UOwwOwDxI4WON1aujg78zBush52aLIUeFubdpp9Au93c6cgf_qDLuRRX2NP0OvTkJ/pub?gid=0&single=true&output=csv';
+        // ==========================================
+
+        // 1. 產生雪花
+        function createSnow() {
+            const container = document.getElementById('snow-container');
+            const snowCount = 50; // 雪花數量
+            for (let i = 0; i < snowCount; i++) {
+                const snow = document.createElement('div');
+                snow.className = 'snow';
+                // 隨機大小、位置和動畫時間
+                const size = Math.random() * 5 + 2 + 'px';
+                snow.style.width = size;
+                snow.style.height = size;
+                snow.style.left = Math.random() * 100 + 'vw';
+                snow.style.animationDuration = Math.random() * 5 + 5 + 's'; // 5~10秒
+                snow.style.animationDelay = Math.random() * 5 + 's';
+                snow.style.opacity = Math.random();
+                container.appendChild(snow);
+            }
+        }
+
+        // 2. 讀取數據並顯示
+        function loadData() {
+            Papa.parse(sheetCsvUrl, {
+                download: true, header: true,
+                complete: function(results) {
+                    const data = results.data.filter(item => item.Title);
+                    
+                    // 統計總數
+                    document.getElementById('totalCount').innerText = data.length;
+
+                    // 統計環境相關 (關鍵字篩選)
+                    const envKeywords = ['環境', '循環', '回收', '廢棄物'];
+                    const envCount = data.filter(item => {
+                        const text = (item.Org + item.Title).toLowerCase();
+                        return envKeywords.some(kw => text.includes(kw));
+                    }).length;
+                    document.getElementById('envCount').innerText = envCount;
+
+                    // 統計 12 月份的案子 (趣味數據)
+                    const decCount = data.filter(item => item.Date && item.Date.includes('/12/')).length;
+                    document.getElementById('decemberCount').innerText = decCount;
+                }
+            });
+        }
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            createSnow();
+            loadData();
+        });
+    </script>
+</body>
+</html>
