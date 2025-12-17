@@ -416,30 +416,24 @@ function switchMode(mode) {
     }
 }
 
-// ★ 新增：通用的讀取函式 (為了企專用)
-function loadDataSpecific(url) {
-    Papa.parse(url, {
-        download: true, header: true,
-        complete: function(results) {
-            allData = results.data.filter(item => item.Title && item.Link).reverse();
-            updateStats();
-            
-            // 重置搜尋
-            document.getElementById('searchInput').value = '';
-            
-            // ★ 修正點：移除 'today' 過濾，改為直接顯示所有資料 (allData)
-            // 因為企專模式是要看累積的監控清單，不應只顯示當天
-            renderList(allData, 'container-today', false); 
-            
-            // 為了避免混淆，切換到企專模式時，我們可以自動切換到第一個分頁
-            const todayTab = new bootstrap.Tab(document.getElementById('pills-today-tab'));
-            todayTab.show();
-        },
-        error: function(err) {
-            document.getElementById('container-today').innerHTML = '<div class="empty-state text-danger">讀取失敗，請檢查 CSV 連結</div>';
-        }
-    });
-}
+// ★ 新增：通用的讀取函式 (給企專模式用)
+    function loadDataSpecific(url) {
+        Papa.parse(url, {
+            download: true, header: true,
+            complete: function(results) {
+                allData = results.data.filter(item => item.Title && item.Link).reverse();
+                updateStats();
+                document.getElementById('searchInput').value = '';
+                
+                // ★ 修正重點：直接傳入 allData，不要過濾 'today'
+                // 這樣才能看到累積的歷史資料庫
+                renderList(allData, 'container-today', false); 
+            },
+            error: function(err) {
+                document.getElementById('container-today').innerHTML = '<div class="empty-state text-danger">讀取失敗，請檢查 CSV 連結</div>';
+            }
+        });
+    }
         // 讀取日誌 (維持原樣，僅修改顯示樣式)
         function checkSystemStatus() {
             Papa.parse(logCsvUrl, {
@@ -739,6 +733,7 @@ function loadDataSpecific(url) {
     </script>
 </body>
 </html>
+
 
 
 
