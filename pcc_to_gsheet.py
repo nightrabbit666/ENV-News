@@ -35,6 +35,22 @@ WORKSHEET_NAME = 'news'
 LOG_SHEET_NAME = 'logs'
 CONFIG_SHEET_NAME = 'Config'
 HISTORY_SHEET_NAME = 'history' # 歷史資料分頁
+# --- 插入這段 TASKS 設定 ---
+# ★ 任務設定：定義雙軌邏輯
+TASKS = {
+    "General": {
+        "config_sheet": "Config",
+        "target_sheet": "news",
+        "title": "標案戰情快訊",
+        "mode": "general" # 一般模式：全部混搜
+    },
+    "Enterprise": {
+        "config_sheet": "Enterprise_Config",
+        "target_sheet": "enterprise_news",
+        "title": "【企專】標案快訊",
+        "mode": "enterprise" # 企專模式：關鍵字優先 + 機關自動分類
+    }
+}
 
 URL_BASIC = "https://web.pcc.gov.tw/prkms/tender/common/basic/indexTenderBasic"
 DASHBOARD_URL = "https://nightrabbit666.github.io/ENV-News/index.html"
@@ -245,49 +261,118 @@ def upload_to_gsheet(df):
         return len(new_rows), pd.DataFrame(new_data_for_notify)
     return 0, pd.DataFrame()
 
+# --- 替換整個 main 函式 ---
 def main():
-    print("🚀 啟動爬蟲 (V34.0 輕量過濾版)...")
+    print("🚀 啟動爬蟲 (雙軌分類版 V2)...")
+    driver = init_driver()
+    
     try:
-        keywords, org_keywords = load_keywords_from_sheet()
-        driver = init_driver()
-        all_data = []
-        
-        print("\n--- 搜尋正式公告 ---")
-        for org in org_keywords:
-            all_data.extend(search_tender(driver, org, "org"))
-            time.sleep(1)
-        for kw in keywords:
-            all_data.extend(search_tender(driver, kw, "name"))
-            time.sleep(1)
-        driver.quit()
-        
-        msg = "今日無新情報"
-        count = 0
-        new_df = pd.DataFrame()
+        # 迴圈執行定義好的任務 (General, Enterprise)
+        for task_name, config in TASKS.items():
+            print(f"\n======== 執行任務：{task_name} ========")
+            
+            # 1. 讀取設定
+            # load_keywords_from_sheet 函式需確認是否支援傳入 sheet_name 參數
+            # 若您的版本不支援，請修改 load_keywords_from_sheet 讓它接受 sheet_name
+            # 這裡假設您已修改該函式，或是直接在此處指定分頁讀取
+            try:
+                client = get_google_client()
+                sheet = client.open_by_url(SHEET_URL).worksheet(config['config_sheet'])
+                records = sheet.get_all_records()
+                keywords = [r['Keyword'] for r in records if r['Type'] == '標案' and r['Keyword']]
+                org_keywords = [r['Keyword'] for r in records if r['Type'] == '機關' and r['Keyword']]
+            except:
+                print(f"   ⚠️ 無法讀取 {config['config_sheet']}，跳過")
+                continue
 
-        if all_data:
-            df = pd.DataFrame(all_data)
-            df.drop_duplicates(subset=['Link'], keep='first', inplace=True)
-            count, new_df = upload_to_gsheet(df)
-            msg = f"成功執行，發現 {count} 筆新情報" if count > 0 else "資料已存在"
-        
-        # 必定通知 (確認系統活著)
-        send_google_chat(count, new_df)
-        
-        # ★ 執行資料封存
-        archive_old_records()
-        
-        log_to_sheet("SUCCESS", msg)
+            if not keywords and not org_keywords: continue
+
+            all_data = []
+
+            # 2. 執行搜尋邏輯 (依模式區分)
+            if config['mode'] == "general":
+                # [一般模式]：標案名 OR 機關名 (全部混搜，不特別分類)
+                for org in org_keywords:
+                    res = search_tender(driver, org, "org")
+                    for r in res: r['Tags'] = f"機關-{org}"
+                    all_data.extend(res)
+                    time.sleep(0.5)
+                for kw in keywords:
+                    res = search_tender(driver, kw, "name")
+                    for r in res: r['Tags'] = f"標案-{kw}"
+                    all_data.extend(res)
+                    time.sleep(0.5)
+            
+            elif config['mode'] == "enterprise":
+                # [企專模式]：關鍵字優先搜尋，再依據機關分類
+                # 策略：因為「標案名稱」一定要搜，所以只搜關鍵字
+                print(f"   ⚡ 企專模式：搜尋 {len(keywords)} 組關鍵字...")
+                for kw in keywords:
+                    res = search_tender(driver, kw, "name")
+                    for r in res:
+                        # ★ 核心分類邏輯 ★
+                        # 檢查此案子的機關是否在「重點機關清單」中
+                        is_target_org = any(target in r['Org'] for target in org_keywords)
+                        
+                        if is_target_org:
+                            r['Tags'] = "★重點" # 前端會抓這個標記來分組
+                        else:
+                            r['Tags'] = "其他"
+                    
+                    all_data.extend(res)
+                    time.sleep(0.5)
+
+            # 3. 處理結果
+            count = 0
+            if all_data:
+                df = pd.DataFrame(all_data)
+                df.drop_duplicates(subset=['Link'], keep='first', inplace=True)
+                # 注意：這裡呼叫 upload_to_gsheet 時，要確保該函式支援傳入 sheet_name
+                # 若原本函式不支援，請修改 upload_to_gsheet 定義，加入 sheet_name 參數
+                client = get_google_client()
+                sheet = client.open_by_url(SHEET_URL).worksheet(config['target_sheet'])
+                existing_data = sheet.get_all_records()
+                existing_links = set(str(row['Link']) for row in existing_data if 'Link' in row)
+                
+                new_rows = []
+                new_data_for_notify = []
+
+                for index, row in df.iterrows():
+                    # 預算過濾
+                    try: budget_val = int(re.sub(r'[^\d]', '', row['Budget']))
+                    except: budget_val = 0
+                    if MIN_BUDGET > 0 and budget_val < MIN_BUDGET: continue
+
+                    if str(row['Link']) not in existing_links:
+                        row_data = [
+                            row['Date'], row['Org'], row['Title'], row['Link'],
+                            row['Deadline'], row['Budget'], row['Tags'], row['Source']
+                        ]
+                        new_rows.append(row_data)
+                        new_data_for_notify.append(row)
+                        existing_links.add(str(row['Link']))
+                
+                if new_rows:
+                    sheet.append_rows(new_rows)
+                    count = len(new_rows)
+                    # 發送通知
+                    send_google_chat(count, pd.DataFrame(new_data_for_notify)) # 這裡標題會共用，若要區分需修改 send_google_chat
+                    print(f"   ✅ {task_name} 完成：新增 {count} 筆")
+                else:
+                    print(f"   ✅ {task_name} 完成：資料已存在")
+            else:
+                print(f"   ✅ {task_name} 完成：無資料")
+
+        log_to_sheet("SUCCESS", "雙軌任務執行完畢")
 
     except Exception as e:
         error_msg = f"程式崩潰: {str(e)}\n{traceback.format_exc()}"
         print(error_msg)
         log_to_sheet("ERROR", error_msg)
-        if GOOGLE_CHAT_WEBHOOK:
-            try: requests.post(GOOGLE_CHAT_WEBHOOK, json={"text": f"🚨 錯誤: {str(e)}"})
-            except: pass
-        sys.exit(1)
+    finally:
+        driver.quit()
 
 if __name__ == "__main__":
     main()
+
 
