@@ -449,7 +449,7 @@ function switchMode(mode) {
             }
         });
     }
-        // 讀取日誌 (維持原樣，僅修改顯示樣式)
+    // 讀取日誌並顯示系統狀態 + 搜尋條件
         function checkSystemStatus() {
             Papa.parse(logCsvUrl, {
                 download: true, header: true,
@@ -463,13 +463,16 @@ function switchMode(mode) {
                             statusBar.style.display = 'block';
                         } else {
                             document.getElementById('last-update-container').style.display = 'flex';
-                            document.getElementById('last-update-time').innerText = `(更新: ${lastLog.Time})`;
+                            
+                            // ★ 修改這裡：顯示時間 + Log 訊息 (也就是搜尋條件)
+                            // 為了怕訊息太長，可以用 marquee 標籤讓它跑馬燈顯示，或者直接顯示
+                            document.getElementById('last-update-time').innerHTML = 
+                                `(更新: ${lastLog.Time}) <span class="ms-3 text-info"><i class="fas fa-search me-1"></i>${lastLog.Message}</span>`;
                         }
                     }
                 }
             });
         }
-
         // 讀取主資料 (維持原樣)
         function fetchData() {
             Papa.parse(sheetCsvUrl, {
@@ -748,6 +751,7 @@ function switchMode(mode) {
     </script>
 </body>
 </html>
+
 
 
 
