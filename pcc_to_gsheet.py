@@ -174,42 +174,40 @@ def upload_to_gsheet(df, sheet_name):
         return len(new_rows), pd.DataFrame(new_data_for_notify)
     return 0, pd.DataFrame()
 
-# --- Google Chat 推播 (分頁版：突破字數限制) ---
-def send_google_chat(new_data_count, df_new):
+# --- Google Chat 推播 (分頁版 + 顯示搜尋條件) ---
+def send_google_chat(df_new, title_prefix, search_terms=""):
     if not GOOGLE_CHAT_WEBHOOK: return
-    print("📲 發送 Google Chat 通知...")
+    print(f"📲 發送 Google Chat 通知: {title_prefix}...")
     today = datetime.now().strftime("%Y/%m/%d")
     
-    # 如果沒資料，發送一則簡單通知就好
+    # 計算資料筆數
+    new_data_count = len(df_new)
+
     if new_data_count == 0:
-        text = f"🔔 *【標案戰情快訊】 {today}*\n"
-        text += "☕ 今日無新資料 (或未達金額門檻)\n━━━━━━━━━━━━━━\n"
-        try: requests.post(GOOGLE_CHAT_WEBHOOK, json={"text": text})
-        except: pass
+        # 即使沒資料，也可以選擇是否要發送通知告知「已搜尋下列條件：XXX，但無結果」
+        # 這裡維持原本邏輯，沒資料僅 print，不推播 (避免吵)
         return
 
-    # ★ 設定每則訊息最多顯示幾筆 (建議 20 筆，避免超過 Google 4096 字元限制)
+    # ★ 設定每則訊息最多顯示幾筆 (建議 20 筆)
     BATCH_SIZE = 20
     
-    # 將資料轉為列表方便切分
     records = df_new.to_dict('records')
-    total_batches = (len(records) + BATCH_SIZE - 1) // BATCH_SIZE  # 計算總共要發幾則
+    total_batches = (len(records) + BATCH_SIZE - 1) // BATCH_SIZE 
 
     for i in range(0, len(records), BATCH_SIZE):
         batch_data = records[i : i + BATCH_SIZE]
         current_batch_num = (i // BATCH_SIZE) + 1
         
-        # 標題加上 (1/3) 這種頁碼，讓你知道還有下一則
-        header = f"🔔 *【標案戰情快訊】 {today}* ({current_batch_num}/{total_batches})\n"
+        # ★ 在標題下方加入搜尋條件
+        header = f"🔔 *{title_prefix} {today}* ({current_batch_num}/{total_batches})\n"
+        if search_terms:
+            header += f"⚙️ *搜尋條件*: {search_terms}\n"
         header += f"發現 {new_data_count} 筆新商機：\n━━━━━━━━━━━━━━\n"
         
         text = header
         for idx, row in enumerate(batch_data):
-            # 全局序號 (例如第 21 筆)
             global_idx = i + idx + 1
-            
             title = str(row['Title'])
-            # 標題過長稍微截斷，避免佔用太多字數
             display_title = title[:35] + "..." if len(title) > 35 else title
             
             text += f"{global_idx}. [{row['Org']}] {row['Org']}\n"
@@ -218,16 +216,15 @@ def send_google_chat(new_data_count, df_new):
             text += f"   ⏳ 截止: {row['Deadline']}\n"
             text += f"   🔗 <{row['Link']}|查看公告> | 📊 <{DASHBOARD_URL}|戰情儀表板>\n\n"
 
-        # 發送這一批
         try:
             requests.post(GOOGLE_CHAT_WEBHOOK, json={"text": text})
-            time.sleep(0.5) # 稍微休息一下，避免發送太快順序錯亂
+            time.sleep(0.5)
         except Exception as e:
             print(f"❌ 發送失敗: {e}")
-
 # --- 主程式 ---
+# --- 主程式 (雙軌制 + 顯示搜尋條件修正版) ---
 def main():
-    print("🚀 啟動爬蟲 (雙軌分類版)...")
+    print("🚀 啟動爬蟲 (雙軌分類 V2 + 搜尋紀錄)...")
     driver = init_driver()
     
     try:
@@ -236,47 +233,65 @@ def main():
             
             # 1. 讀取設定
             keywords, org_keywords = load_keywords_from_sheet(config['config_sheet'])
+            if not keywords and not org_keywords:
+                print("   ⚠️ 無關鍵字，跳過")
+                continue
             
-            # 2. 執行搜尋邏輯 (依模式區分)
+            # ★ 新增：產生搜尋條件字串 (用於 Log 與 推播)
+            # 為了版面整潔，如果關鍵字太多，可以用 [:5] 取前幾個
+            search_terms_log = f"[機關] {','.join(org_keywords)} [關鍵字] {','.join(keywords)}"
+
             all_data = []
-            
+
+            # 2. 執行搜尋邏輯
             if config['mode'] == "general":
-                # [一般模式]：標案名 OR 機關名 (全部混搜)
+                # [一般模式]
                 for org in org_keywords:
                     res = search_tender(driver, org, "org")
                     for r in res: r['Tags'] = f"機關-{org}"
                     all_data.extend(res)
-                    time.sleep(1)
+                    time.sleep(0.5)
                 for kw in keywords:
                     res = search_tender(driver, kw, "name")
                     for r in res: r['Tags'] = f"標案-{kw}"
                     all_data.extend(res)
-                    time.sleep(1)
+                    time.sleep(0.5)
             
             elif config['mode'] == "enterprise":
-                # [企專模式]：關鍵字優先搜尋，再依據機關分類
+                # [企專模式]
                 for kw in keywords:
                     res = search_tender(driver, kw, "name")
                     for r in res:
-                        # ★ 核心分類邏輯：這是網頁分組的關鍵
                         is_target_org = any(target in r['Org'] for target in org_keywords)
                         if is_target_org:
                             r['Tags'] = "★重點" 
                         else:
                             r['Tags'] = "其他"
-                    
                     all_data.extend(res)
-                    time.sleep(1)
+                    time.sleep(0.5)
 
             # 3. 處理結果
+            log_msg = f"{task_name} 無新資料。搜尋參數: {search_terms_log}"
+            
             if all_data:
                 df = pd.DataFrame(all_data)
                 df.drop_duplicates(subset=['Link'], keep='first', inplace=True)
+                
+                # 上傳到對應分頁
                 count, new_df = upload_to_gsheet(df, config['target_sheet'])
-                send_google_chat(count, new_df, config['title'])
-                print(f"   ✅ {task_name} 完成：新增 {count} 筆")
+                
+                # ★ 修正：呼叫新的 send_google_chat (傳入 df, 標題, 搜尋字串)
+                if count > 0:
+                    send_google_chat(new_df, config['title'], search_terms_log)
+                    print(f"   ✅ {task_name} 完成：新增 {count} 筆")
+                    log_msg = f"{task_name} 新增 {count} 筆。搜尋參數: {search_terms_log}"
+                else:
+                    print(f"   ✅ {task_name} 完成：資料已存在")
             else:
                 print(f"   ✅ {task_name} 完成：無資料")
+
+            # ★ 將包含搜尋參數的訊息寫入 Log (讓網頁顯示)
+            log_to_sheet("INFO", log_msg)
 
         log_to_sheet("SUCCESS", "雙軌任務執行完畢")
 
@@ -289,4 +304,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
