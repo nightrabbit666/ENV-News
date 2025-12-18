@@ -223,6 +223,7 @@ def send_google_chat(df_new, title_prefix, search_terms=""):
             print(f"❌ 發送失敗: {e}")
 # --- 主程式 ---
 # --- 主程式 (雙軌制 + 顯示搜尋條件修正版) ---
+# --- 主程式 (修正版：正確傳遞搜尋條件與Log) ---
 def main():
     print("🚀 啟動爬蟲 (雙軌分類 V2 + 搜尋紀錄)...")
     driver = init_driver()
@@ -237,9 +238,11 @@ def main():
                 print("   ⚠️ 無關鍵字，跳過")
                 continue
             
-            # ★ 新增：產生搜尋條件字串 (用於 Log 與 推播)
-            # 為了版面整潔，如果關鍵字太多，可以用 [:5] 取前幾個
-            search_terms_log = f"[機關] {','.join(org_keywords)} [關鍵字] {','.join(keywords)}"
+            # ★ 修正重點 1：產生搜尋條件字串 (限制長度避免洗版)
+            # 例如顯示前 5 個關鍵字，後面用 ...
+            kws_str = ",".join(keywords[:5]) + ("..." if len(keywords)>5 else "")
+            orgs_str = ",".join(org_keywords[:3]) + ("..." if len(org_keywords)>3 else "")
+            search_terms_log = f"[機關] {orgs_str} [關鍵字] {kws_str}"
 
             all_data = []
 
@@ -271,7 +274,7 @@ def main():
                     time.sleep(0.5)
 
             # 3. 處理結果
-            log_msg = f"{task_name} 無新資料。搜尋參數: {search_terms_log}"
+            log_msg = f"[{task_name}] 無新資料。搜尋參數: {search_terms_log}"
             
             if all_data:
                 df = pd.DataFrame(all_data)
@@ -280,17 +283,18 @@ def main():
                 # 上傳到對應分頁
                 count, new_df = upload_to_gsheet(df, config['target_sheet'])
                 
-                # ★ 修正：呼叫新的 send_google_chat (傳入 df, 標題, 搜尋字串)
+                # ★ 修正重點 2：呼叫 send_google_chat 的參數順序要正確！
+                # 正確順序：(DataFrame, 標題, 搜尋字串)
                 if count > 0:
                     send_google_chat(new_df, config['title'], search_terms_log)
                     print(f"   ✅ {task_name} 完成：新增 {count} 筆")
-                    log_msg = f"{task_name} 新增 {count} 筆。搜尋參數: {search_terms_log}"
+                    log_msg = f"[{task_name}] 新增 {count} 筆。搜尋參數: {search_terms_log}"
                 else:
                     print(f"   ✅ {task_name} 完成：資料已存在")
             else:
                 print(f"   ✅ {task_name} 完成：無資料")
 
-            # ★ 將包含搜尋參數的訊息寫入 Log (讓網頁顯示)
+            # ★ 修正重點 3：將包含搜尋參數的訊息寫入 Log (這樣網頁才讀得到)
             log_to_sheet("INFO", log_msg)
 
         log_to_sheet("SUCCESS", "雙軌任務執行完畢")
@@ -304,5 +308,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
