@@ -174,35 +174,56 @@ def upload_to_gsheet(df, sheet_name):
         return len(new_rows), pd.DataFrame(new_data_for_notify)
     return 0, pd.DataFrame()
 
-def send_google_chat(new_data_count, df_new, title_prefix="【標案戰情快訊】"):
+# --- Google Chat 推播 (分頁版：突破字數限制) ---
+def send_google_chat(new_data_count, df_new):
     if not GOOGLE_CHAT_WEBHOOK: return
-    print(f"📲 發送 Google Chat 通知: {title_prefix}")
+    print("📲 發送 Google Chat 通知...")
     today = datetime.now().strftime("%Y/%m/%d")
     
-    text = f"🔔 *{title_prefix} {today}*\n"
+    # 如果沒資料，發送一則簡單通知就好
     if new_data_count == 0:
-        text += "☕ 今日無新資料\n━━━━━━━━━━━━━━\n"
-    else:
-        text += f"發現 {new_data_count} 筆新商機：\n━━━━━━━━━━━━━━\n"
-        count = 0
-        for index, row in df_new.iterrows():
-            count += 1
-            if count > 10: 
-                text += f"\n...(略 {new_data_count - 10} 筆)"
-                break
+        text = f"🔔 *【標案戰情快訊】 {today}*\n"
+        text += "☕ 今日無新資料 (或未達金額門檻)\n━━━━━━━━━━━━━━\n"
+        try: requests.post(GOOGLE_CHAT_WEBHOOK, json={"text": text})
+        except: pass
+        return
+
+    # ★ 設定每則訊息最多顯示幾筆 (建議 20 筆，避免超過 Google 4096 字元限制)
+    BATCH_SIZE = 20
+    
+    # 將資料轉為列表方便切分
+    records = df_new.to_dict('records')
+    total_batches = (len(records) + BATCH_SIZE - 1) // BATCH_SIZE  # 計算總共要發幾則
+
+    for i in range(0, len(records), BATCH_SIZE):
+        batch_data = records[i : i + BATCH_SIZE]
+        current_batch_num = (i // BATCH_SIZE) + 1
+        
+        # 標題加上 (1/3) 這種頁碼，讓你知道還有下一則
+        header = f"🔔 *【標案戰情快訊】 {today}* ({current_batch_num}/{total_batches})\n"
+        header += f"發現 {new_data_count} 筆新商機：\n━━━━━━━━━━━━━━\n"
+        
+        text = header
+        for idx, row in enumerate(batch_data):
+            # 全局序號 (例如第 21 筆)
+            global_idx = i + idx + 1
             
             title = str(row['Title'])
-            display_title = title[:30] + "..." if len(title) > 30 else title
-            budget_str = f"💰 {row['Budget']}" if row['Budget'] else ""
+            # 標題過長稍微截斷，避免佔用太多字數
+            display_title = title[:35] + "..." if len(title) > 35 else title
             
-            text += f"{count}. [{row['Org']}] {row['Org']}\n"
+            text += f"{global_idx}. [{row['Org']}] {row['Org']}\n"
             text += f"   📝 {display_title}\n"
-            if budget_str: text += f"   {budget_str}\n"
+            if row['Budget']: text += f"   💰 {row['Budget']}\n"
             text += f"   ⏳ 截止: {row['Deadline']}\n"
             text += f"   🔗 <{row['Link']}|查看公告> | 📊 <{DASHBOARD_URL}|戰情儀表板>\n\n"
 
-    try: requests.post(GOOGLE_CHAT_WEBHOOK, json={"text": text})
-    except Exception as e: print(f"❌ 發送失敗: {e}")
+        # 發送這一批
+        try:
+            requests.post(GOOGLE_CHAT_WEBHOOK, json={"text": text})
+            time.sleep(0.5) # 稍微休息一下，避免發送太快順序錯亂
+        except Exception as e:
+            print(f"❌ 發送失敗: {e}")
 
 # --- 主程式 ---
 def main():
@@ -268,3 +289,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
