@@ -32,6 +32,7 @@ SHEET_URL = 'https://docs.google.com/spreadsheets/d/1oJlYFwsipBg1hGMuUYuOWen2jlX
 LOG_SHEET_NAME = 'logs'
 
 # ★ 任務設定：定義雙軌邏輯 (請確認 Sheet 名稱是否正確)
+# ★ 任務設定：定義雙軌邏輯 (請確認 Sheet 名稱是否正確)
 TASKS = {
     "General": {
         "config_sheet": "Config",
@@ -44,12 +45,12 @@ TASKS = {
         "target_sheet": "enterprise_news",
         "title": "【企專】標案快訊",
         "mode": "enterprise"
-    }
-   "Marketing": {  # <--- ★ 新增這一段給行銷部
-        "config_sheet": "Marketing_Config",   # 對應您剛建立的設定頁
-        "target_sheet": "marketing_news",     # 對應您剛建立的資料存檔頁
-        "title": "【行銷】標案快訊",           # 推播時顯示的標題
-        "mode": "general"                     # 建議用 general 模式 (搜尋關鍵字即可)
+    },  # <--- 1. 這裡補上了逗號！
+    "Marketing": {
+        "config_sheet": "Marketing_Config",
+        "target_sheet": "marketing_news",
+        "title": "【行銷】標案快訊",
+        "mode": "marketing"  # <--- 2. 這裡改成 marketing，才能啟動 A/B 欄判斷邏輯
     }
 }
 
@@ -364,6 +365,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
