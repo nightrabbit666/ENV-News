@@ -45,6 +45,12 @@ TASKS = {
         "title": "【企專】標案快訊",
         "mode": "enterprise"
     }
+   "Marketing": {  # <--- ★ 新增這一段給行銷部
+        "config_sheet": "Marketing_Config",   # 對應您剛建立的設定頁
+        "target_sheet": "marketing_news",     # 對應您剛建立的資料存檔頁
+        "title": "【行銷】標案快訊",           # 推播時顯示的標題
+        "mode": "general"                     # 建議用 general 模式 (搜尋關鍵字即可)
+    }
 }
 
 URL_BASIC = "https://web.pcc.gov.tw/prkms/tender/common/basic/indexTenderBasic"
@@ -308,6 +314,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
