@@ -649,6 +649,7 @@ function switchMode(mode) {
             });
         }
 // ★ 新增這個輔助函式：負責產生單張卡片的 HTML (支援自訂顏色)
+// ★ 修正版卡片產生器：確保顏色 (borderColor) 能正確變換
 function createCardHtml(item, borderColor) {
     const budget = item.Budget ? item.Budget : '未公開';
     const deadline = item.Deadline ? item.Deadline : '未定';
@@ -680,21 +681,23 @@ function renderList(data, containerId, groupByDate) {
     }
 
     // === 1. 一般模式 OR 行銷模式：網格顯示 (Grid) ===
-    // 這兩個模式都不需要分組，直接列出來即可
     if (currentMode === 'general' || currentMode === 'marketing') {
         
-        // 設定顏色：行銷用粉紅色 (#ff3366)，一般用原本的藍色 (#0ea5e9)
+        // ★ 關鍵：在這裡決定顏色
+        // 如果是行銷 (marketing) 就用粉紅 (#ff3366)，否則用藍色 (#0ea5e9)
         const modeColor = currentMode === 'marketing' ? '#ff3366' : '#0ea5e9';
         
         let gridHtml = '<div class="row g-4">';
         data.forEach(item => {
-            // 呼叫上面的輔助函式來產生卡片
+            // 把決定好的顏色傳進去
             gridHtml += createCardHtml(item, modeColor);
         });
         gridHtml += '</div>';
         container.innerHTML = gridHtml;
         return;
     }
+
+    // ... (下方是企專模式的程式碼，維持不變) ...
 
     // === 2. 企專模式：分組顯示 (重點 vs 其他) ===
     if (currentMode === 'enterprise') {
@@ -744,6 +747,7 @@ function renderList(data, containerId, groupByDate) {
     </script>
 </body>
 </html>
+
 
 
 
