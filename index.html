@@ -190,6 +190,8 @@
 .mode-btn.active { color: #fff; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
 .mode-btn[data-mode="general"].active { background: #0ea5e9; }
 .mode-btn[data-mode="enterprise"].active { background: #8b5cf6; }
+        /* 👇 請新增這一行 (設定行銷按鈕激活時為粉紅色) */
+.mode-btn[data-mode="marketing"].active { background: #ff3366; }
 
 /* === 修改：方形卡片設計 (Grid Layout) === */
 .tender-card-tech { 
@@ -747,6 +749,7 @@ function renderList(data, containerId, groupByDate) {
     </script>
 </body>
 </html>
+
 
 
 
