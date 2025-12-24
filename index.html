@@ -289,6 +289,9 @@
     <button class="mode-btn" data-mode="enterprise" onclick="switchMode('enterprise')">
         <i class="fas fa-building me-2"></i>企專
     </button>
+    <button class="mode-btn" data-mode="marketing" onclick="switchMode('marketing')">
+        <i class="fas fa-bullhorn me-2"></i>行銷
+    </button>
 </div>
             </div>
             <div class="text-center mb-4">
@@ -366,6 +369,8 @@
         const sheetCsvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSL9csppWjrqt8UOwwOwDxI4WON1aujg78zBush52aLIUeFubdpp9Au93c6cgf_qDLuRRX2NP0OvTkJ/pub?gid=0&single=true&output=csv';
         const logCsvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSL9csppWjrqt8UOwwOwDxI4WON1aujg78zBush52aLIUeFubdpp9Au93c6cgf_qDLuRRX2NP0OvTkJ/pub?gid=469067754&single=true&output=csv'; 
         const historyCsvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSL9csppWjrqt8UOwwOwDxI4WON1aujg78zBush52aLIUeFubdpp9Au93c6cgf_qDLuRRX2NP0OvTkJ/pub?gid=175963084&single=true&output=csv'; 
+        // 新增行銷的 CSV 連結
+        const marketingCsvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSL9csppWjrqt8UOwwOwDxI4WON1aujg78zBush52aLIUeFubdpp9Au93c6cgf_qDLuRRX2NP0OvTkJ/pub?gid=455646090&single=true&output=csv';
 // 原本的 sheetCsvUrl 改名為 generalCsvUrl (比較清楚)，或者直接新增下面這行
         const enterpriseCsvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSL9csppWjrqt8UOwwOwDxI4WON1aujg78zBush52aLIUeFubdpp9Au93c6cgf_qDLuRRX2NP0OvTkJ/pub?gid=142405960&single=true&output=csv'; 
       
@@ -409,10 +414,11 @@ function switchMode(mode) {
     // 根據模式讀取不同 CSV (注意這裡的 sheetCsvUrl 變數名稱要對應您原本的)
     if (mode === 'general') {
         fetchData(); // 這裡假設 fetchData 裡面用的是預設的 sheetCsvUrl
-    } else {
-        // 我們需要稍微修改 fetchData 讓它支援傳入 URL，或者在這裡直接重寫 Papa.parse
-        // 最簡單的方法是修改下方的 fetchData 函式
+  } else if (mode === 'enterprise') {
         loadDataSpecific(enterpriseCsvUrl);
+    } else if (mode === 'marketing') {
+        // ★ 行銷也使用 loadDataSpecific 讀取它的 CSV
+        loadDataSpecific(marketingCsvUrl);
     }
 }
 
@@ -642,9 +648,29 @@ function switchMode(mode) {
                 background: '#1e293b', color: '#f8fafc'
             });
         }
-
+// ★ 新增這個輔助函式：負責產生單張卡片的 HTML (支援自訂顏色)
+function createCardHtml(item, borderColor) {
+    const budget = item.Budget ? item.Budget : '未公開';
+    const deadline = item.Deadline ? item.Deadline : '未定';
+    
+    return `
+        <div class="col-md-6 col-lg-4">
+            <div class="tender-card-tech" style="border-top-color: ${borderColor}">
+                <div>
+                    <span class="badge bg-secondary mb-2">${item.Org}</span>
+                    <a href="${item.Link}" target="_blank" class="tender-title-tech">${item.Title}</a>
+                </div>
+                <div class="mt-3 pt-3 border-top border-secondary border-opacity-25 text-muted small">
+                    <div class="d-flex justify-content-between mb-2"><span>預算</span> <span class="text-white">${budget}</span></div>
+                    <div class="d-flex justify-content-between"><span>截止</span> <span class="text-warning">${deadline}</span></div>
+                    <div class="text-end mt-3"><a href="${item.Link}" target="_blank" class="btn btn-sm btn-outline-light w-100 rounded-pill">前往</a></div>
+                </div>
+            </div>
+        </div>`;
+}
         // 渲染列表 (HTML 產生器 - 修改為新樣式)
-       function renderList(data, containerId, groupByDate) {
+  // ★ 修改後的 renderList：支援三種模式
+function renderList(data, containerId, groupByDate) {
     const container = document.getElementById(containerId);
     container.innerHTML = '';
     
@@ -653,27 +679,17 @@ function switchMode(mode) {
         return;
     }
 
-    // === 1. 一般模式：網格顯示 (Grid) ===
-    if (currentMode === 'general') {
+    // === 1. 一般模式 OR 行銷模式：網格顯示 (Grid) ===
+    // 這兩個模式都不需要分組，直接列出來即可
+    if (currentMode === 'general' || currentMode === 'marketing') {
+        
+        // 設定顏色：行銷用粉紅色 (#ff3366)，一般用原本的藍色 (#0ea5e9)
+        const modeColor = currentMode === 'marketing' ? '#ff3366' : '#0ea5e9';
+        
         let gridHtml = '<div class="row g-4">';
         data.forEach(item => {
-            // 方形卡片 HTML 產生器
-            const budget = item.Budget ? item.Budget : '未公開';
-            const deadline = item.Deadline ? item.Deadline : '未定';
-            gridHtml += `
-                <div class="col-md-6 col-lg-4">
-                    <div class="tender-card-tech" style="border-top-color: #0ea5e9">
-                        <div>
-                            <span class="badge bg-secondary mb-2">${item.Org}</span>
-                            <a href="${item.Link}" target="_blank" class="tender-title-tech">${item.Title}</a>
-                        </div>
-                        <div class="mt-3 pt-3 border-top border-secondary border-opacity-25 text-muted small">
-                            <div class="d-flex justify-content-between mb-2"><span>預算</span> <span class="text-white">${budget}</span></div>
-                            <div class="d-flex justify-content-between"><span>截止</span> <span class="text-warning">${deadline}</span></div>
-                            <div class="text-end mt-3"><a href="${item.Link}" target="_blank" class="btn btn-sm btn-outline-light w-100 rounded-pill">前往</a></div>
-                        </div>
-                    </div>
-                </div>`;
+            // 呼叫上面的輔助函式來產生卡片
+            gridHtml += createCardHtml(item, modeColor);
         });
         gridHtml += '</div>';
         container.innerHTML = gridHtml;
@@ -681,66 +697,43 @@ function switchMode(mode) {
     }
 
     // === 2. 企專模式：分組顯示 (重點 vs 其他) ===
-    const priorityGroups = {}; 
-    const otherList = [];
+    if (currentMode === 'enterprise') {
+        const priorityGroups = {}; 
+        const otherList = [];
+        const enterpriseColor = '#8b5cf6'; // 企專用紫色
 
-    data.forEach(item => {
-        // 檢查 Python 標記的 Tags (★重點)
-        if (item.Tags && item.Tags.includes('★重點')) {
-            const org = item.Org;
-            if (!priorityGroups[org]) priorityGroups[org] = [];
-            priorityGroups[org].push(item);
-        } else {
-            otherList.push(item);
+        // 分類邏輯
+        data.forEach(item => {
+            if (item.Tags && item.Tags.includes('★重點')) {
+                const org = item.Org;
+                if (!priorityGroups[org]) priorityGroups[org] = [];
+                priorityGroups[org].push(item);
+            } else {
+                otherList.push(item);
+            }
+        });
+
+        // 渲染重點分組
+        for (const [orgName, items] of Object.entries(priorityGroups)) {
+            let groupHtml = `<div class="group-container"><div class="group-header text-warning"><i class="fas fa-star me-2"></i>${orgName} (${items.length})</div><div class="row g-4">`;
+            items.forEach(item => {
+                groupHtml += createCardHtml(item, enterpriseColor);
+            });
+            groupHtml += '</div></div>';
+            container.innerHTML += groupHtml;
         }
-    });
 
-    // 渲染重點分組
-    for (const [orgName, items] of Object.entries(priorityGroups)) {
-        let groupHtml = `<div class="group-container"><div class="group-header text-warning"><i class="fas fa-star me-2"></i>${orgName} (${items.length})</div><div class="row g-4">`;
-        items.forEach(item => {
-            // 這裡重複使用上面的卡片 HTML 邏輯，您可以抽成一個 function createCard(item, color)
-            const budget = item.Budget ? item.Budget : '未公開';
-            const deadline = item.Deadline ? item.Deadline : '未定';
-            groupHtml += `
-                <div class="col-md-6 col-lg-4">
-                    <div class="tender-card-tech" style="border-top-color: #8b5cf6">
-                        <div><span class="badge bg-secondary mb-2">${item.Org}</span><a href="${item.Link}" target="_blank" class="tender-title-tech">${item.Title}</a></div>
-                        <div class="mt-3 pt-3 border-top border-secondary border-opacity-25 text-muted small">
-                            <div class="d-flex justify-content-between mb-2"><span>預算</span> <span class="text-white">${budget}</span></div>
-                            <div class="d-flex justify-content-between"><span>截止</span> <span class="text-warning">${deadline}</span></div>
-                            <div class="text-end mt-3"><a href="${item.Link}" target="_blank" class="btn btn-sm btn-outline-light w-100 rounded-pill">前往</a></div>
-                        </div>
-                    </div>
-                </div>`;
-        });
-        groupHtml += '</div></div>';
-        container.innerHTML += groupHtml;
-    }
-
-    // 渲染其他
-    if (otherList.length > 0) {
-        let otherHtml = `<div class="group-container"><div class="group-header text-info"><i class="fas fa-layer-group me-2"></i>其他相關標案 (${otherList.length})</div><div class="row g-4">`;
-        otherList.forEach(item => {
-             const budget = item.Budget ? item.Budget : '未公開';
-             const deadline = item.Deadline ? item.Deadline : '未定';
-             otherHtml += `
-                <div class="col-md-6 col-lg-4">
-                    <div class="tender-card-tech" style="border-top-color: #8b5cf6">
-                        <div><span class="badge bg-secondary mb-2">${item.Org}</span><a href="${item.Link}" target="_blank" class="tender-title-tech">${item.Title}</a></div>
-                        <div class="mt-3 pt-3 border-top border-secondary border-opacity-25 text-muted small">
-                            <div class="d-flex justify-content-between mb-2"><span>預算</span> <span class="text-white">${budget}</span></div>
-                            <div class="d-flex justify-content-between"><span>截止</span> <span class="text-warning">${deadline}</span></div>
-                            <div class="text-end mt-3"><a href="${item.Link}" target="_blank" class="btn btn-sm btn-outline-light w-100 rounded-pill">前往</a></div>
-                        </div>
-                    </div>
-                </div>`;
-        });
-        otherHtml += '</div></div>';
-        container.innerHTML += otherHtml;
+        // 渲染其他
+        if (otherList.length > 0) {
+            let otherHtml = `<div class="group-container"><div class="group-header text-info"><i class="fas fa-layer-group me-2"></i>其他相關標案 (${otherList.length})</div><div class="row g-4">`;
+            otherList.forEach(item => {
+                otherHtml += createCardHtml(item, enterpriseColor);
+            });
+            otherHtml += '</div></div>';
+            container.innerHTML += otherHtml;
+        }
     }
 }
-
         // 更新統計數據 (維持原樣)
         function updateStats() {
             document.getElementById('totalCount').innerText = allData.length;
@@ -751,6 +744,7 @@ function switchMode(mode) {
     </script>
 </body>
 </html>
+
 
 
 
