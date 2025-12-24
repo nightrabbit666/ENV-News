@@ -86,6 +86,19 @@ def load_keywords_from_sheet(sheet_name):
     except Exception as e:
         print(f"⚠️ 讀取失敗 ({e})，使用空列表")
         return [], []
+        # ★ 新增：專門讀取行銷設定檔 (逐列讀取 Keyword 與 Org)
+def load_marketing_config(sheet_name):
+    print(f"📖 讀取行銷設定: {sheet_name}...")
+    try:
+        client = get_google_client()
+        sheet = client.open_by_url(SHEET_URL).worksheet(sheet_name)
+        # 讀取所有資料，回傳 List of Dictionaries
+        # 預期標題列為: Keyword, Org
+        records = sheet.get_all_records()
+        return records
+    except Exception as e:
+        print(f"⚠️ 讀取失敗 ({e})")
+        return []
 
 def parse_budget(budget_str):
     try:
@@ -265,6 +278,43 @@ def main():
                     for r in res: r['Tags'] = f"標案-{kw}"
                     all_data.extend(res)
                     time.sleep(0.5)
+                    # ... (前面的 main 代碼不變) ...
+
+            elif config['mode'] == "marketing":
+                # ★ [行銷模式]：依據 Google Sheet 欄位決定搜尋邏輯
+                print("   [行銷模式] 讀取清單並執行搜尋...")
+                
+                # 使用新的讀取函式
+                marketing_items = load_marketing_config(config['config_sheet'])
+                
+                if not marketing_items:
+                    print("   ⚠️ 行銷設定檔空白或讀取失敗")
+                    continue
+
+                for item in marketing_items:
+                    # 取得欄位資料 (避免 Key Error，使用 get)
+                    kw = str(item.get('Keyword', '')).strip()
+                    org = str(item.get('Org', '')).strip()
+                    
+                    if not kw: continue # 如果關鍵字是空的就跳過
+
+                    # === 判斷邏輯 ===
+                    if org:
+                        # 情境 A：有填機關 -> 執行精準交集搜尋 (AND)
+                        res = search_tender(driver, kw, "name", org_filter=org)
+                        # 標籤範例：精準-影片製作@環境部
+                        for r in res: r['Tags'] = f"精準-{kw}@{org}"
+                        all_data.extend(res)
+                    else:
+                        # 情境 B：機關空白 -> 執行廣泛搜尋 (單項)
+                        res = search_tender(driver, kw, "name", org_filter=None)
+                        # 標籤範例：通用-教育
+                        for r in res: r['Tags'] = f"通用-{kw}"
+                        all_data.extend(res)
+                    
+                    time.sleep(0.5)
+
+            # 3. 處理結果 (後面的代碼維持不變) ...
             
             elif config['mode'] == "enterprise":
                 # [企專模式]
@@ -314,6 +364,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
