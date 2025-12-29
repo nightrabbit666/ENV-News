@@ -123,35 +123,38 @@ def init_driver():
     except Exception as e: raise Exception(f"瀏覽器啟動失敗: {e}")
 
 def search_tender(driver, keyword, search_type, org_filter=None):
-  filter_msg = f" (機關過濾: {org_filter})" if org_filter else ""
-print(f"   🔍 搜尋 {search_type}：{keyword}{filter_msg}")
-try:
-    driver.get(URL_BASIC)
-    wait = WebDriverWait(driver, 10)
-    
-    # 根據 search_type 決定主要搜尋欄位
-    if search_type == "name":
-        tender_input = wait.until(EC.visibility_of_element_located((By.NAME, "tenderName")))
-        tender_input.clear()
-        tender_input.send_keys(keyword)
+    filter_msg = f" (機關過濾: {org_filter})" if org_filter else ""
+    print(f"   🔍 搜尋 {search_type}：{keyword}{filter_msg}")
+    try:
+        driver.get(URL_BASIC)
+        wait = WebDriverWait(driver, 10)
         
-        # ★ 如果有機關過濾，同時填入機關欄位 (真正的精準搜尋)
-        org_input = driver.find_element(By.NAME, "orgName")
-        org_input.clear()
-        if org_filter:
-            org_input.send_keys(org_filter)
-    else:
-        org_input = wait.until(EC.visibility_of_element_located((By.NAME, "orgName")))
-        org_input.clear()
-        org_input.send_keys(keyword)
-        driver.find_element(By.NAME, "tenderName").clear()
-        try: driver.execute_script("basicTenderSearch();")
-        except: input_box.send_keys(Keys.ENTER)
+        if search_type == "name":
+            tender_input = wait.until(EC.visibility_of_element_located((By.NAME, "tenderName")))
+            tender_input.clear()
+            tender_input.send_keys(keyword)
+            
+            org_input = driver.find_element(By.NAME, "orgName")
+            org_input.clear()
+            if org_filter:
+                org_input.send_keys(org_filter)
+        else:
+            org_input = wait.until(EC.visibility_of_element_located((By.NAME, "orgName")))
+            org_input.clear()
+            org_input.send_keys(keyword)
+            driver.find_element(By.NAME, "tenderName").clear()
+        
+        try: 
+            driver.execute_script("basicTenderSearch();")
+        except: 
+            pass
         
         try:
             wait.until(EC.presence_of_element_located((By.CLASS_NAME, "tb_01")))
-            if "無符合條件資料" in driver.page_source: return []
-        except: return []
+            if "無符合條件資料" in driver.page_source: 
+                return []
+        except: 
+            return []
         
         results = []
         rows = driver.find_elements(By.CSS_SELECTOR, ".tb_01 tbody tr")
@@ -169,12 +172,13 @@ try:
                     "Link": link,
                     "Deadline": cols[7].text.strip(),
                     "Budget": cols[8].text.strip(),
-                    "Tags": "", # 稍後填入
+                    "Tags": "",
                     "Source": "政府採購網"
                 })
             except: continue
         return results
-    except: return []
+    except: 
+        return []
 
 def upload_to_gsheet(df, sheet_name):
     print(f"☁️ 上傳至 {sheet_name}...")
@@ -280,7 +284,7 @@ def main():
             if config['mode'] == "general":
                 # [一般模式]
                 for org in org_keywords:
-                    res = search_tender(driver, kw, "name", org_filter=org) 
+                    res = search_tender(driver, org, "org") 
                     for r in res: r['Tags'] = f"機關-{org}"
                     all_data.extend(res)
                     time.sleep(0.5)
@@ -375,6 +379,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
