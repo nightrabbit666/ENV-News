@@ -266,83 +266,69 @@ def main():
         for task_name, config in TASKS.items():
             print(f"\n======== 執行任務：{task_name} ========")
             
-            # 1. 讀取設定
-            keywords, org_keywords = load_keywords_from_sheet(config['config_sheet'])
-            if not keywords and not org_keywords:
-                print("   ⚠️ 無關鍵字，跳過")
-                continue
-            
-            # ★ 修正重點 1：產生搜尋條件字串 (限制長度避免洗版)
-            # 例如顯示前 5 個關鍵字，後面用 ...
-            kws_str = ",".join(keywords[:5]) + ("..." if len(keywords)>5 else "")
-            orgs_str = ",".join(org_keywords[:3]) + ("..." if len(org_keywords)>3 else "")
-            search_terms_log = f"[機關] {orgs_str} [關鍵字] {kws_str}"
-
             all_data = []
-
-            # 2. 執行搜尋邏輯
-            if config['mode'] == "general":
-                # [一般模式]
-                for org in org_keywords:
-                    res = search_tender(driver, org, "org") 
-                    for r in res: r['Tags'] = f"機關-{org}"
-                    all_data.extend(res)
-                    time.sleep(0.5)
-                for kw in keywords:
-                    res = search_tender(driver, kw, "name", org_filter=None)
-                    for r in res: r['Tags'] = f"標案-{kw}"
-                    all_data.extend(res)
-                    time.sleep(0.5)
-                    # ... (前面的 main 代碼不變) ...
-
-            elif config['mode'] == "marketing":
-                # ★ [行銷模式]：依據 Google Sheet 欄位決定搜尋邏輯
-                print("   [行銷模式] 讀取清單並執行搜尋...")
-                
-                # 使用新的讀取函式
+            
+            # ★ 根據模式決定如何讀取設定
+            if config['mode'] == "marketing":
+                # 行銷模式：使用專用的讀取函數
                 marketing_items = load_marketing_config(config['config_sheet'])
-                
                 if not marketing_items:
                     print("   ⚠️ 行銷設定檔空白或讀取失敗")
                     continue
-
+                
+                # 執行行銷搜尋邏輯
                 for item in marketing_items:
-                    # 取得欄位資料 (避免 Key Error，使用 get)
                     kw = str(item.get('Keyword', '')).strip()
                     org = str(item.get('Org', '')).strip()
+                    if not kw: continue
                     
-                    if not kw: continue # 如果關鍵字是空的就跳過
-
-                    # === 判斷邏輯 ===
                     if org:
-                        # 情境 A：有填機關 -> 執行精準交集搜尋 (AND)
                         res = search_tender(driver, kw, "name", org_filter=org)
-                        # 標籤範例：精準-影片製作@環境部
                         for r in res: r['Tags'] = f"精準-{kw}@{org}"
-                        all_data.extend(res)
                     else:
-                        # 情境 B：機關空白 -> 執行廣泛搜尋 (單項)
                         res = search_tender(driver, kw, "name", org_filter=None)
-                        # 標籤範例：通用-教育
                         for r in res: r['Tags'] = f"通用-{kw}"
-                        all_data.extend(res)
-                    
-                    time.sleep(0.5)
-
-            # 3. 處理結果 (後面的代碼維持不變) ...
-            
-            elif config['mode'] == "enterprise":
-                # [企專模式]
-                for kw in keywords:
-                    res = search_tender(driver, kw, "name")
-                    for r in res:
-                        is_target_org = any(target in r['Org'] for target in org_keywords)
-                        if is_target_org:
-                            r['Tags'] = "★重點" 
-                        else:
-                            r['Tags'] = "其他"
                     all_data.extend(res)
                     time.sleep(0.5)
+                
+                search_terms_log = "行銷模式"
+                
+            else:
+                # 一般/企專模式：使用原本的讀取函數
+                keywords, org_keywords = load_keywords_from_sheet(config['config_sheet'])
+                if not keywords and not org_keywords:
+                    print("   ⚠️ 無關鍵字，跳過")
+                    continue
+                
+                kws_str = ",".join(keywords[:5]) + ("..." if len(keywords)>5 else "")
+                orgs_str = ",".join(org_keywords[:3]) + ("..." if len(org_keywords)>3 else "")
+                search_terms_log = f"[機關] {orgs_str} [關鍵字] {kws_str}"
+                
+                if config['mode'] == "general":
+                    # [一般模式]
+                    for org in org_keywords:
+                        res = search_tender(driver, org, "org")
+                        for r in res: r['Tags'] = f"機關-{org}"
+                        all_data.extend(res)
+                        time.sleep(0.5)
+                    for kw in keywords:
+                        res = search_tender(driver, kw, "name")
+                        for r in res: r['Tags'] = f"標案-{kw}"
+                        all_data.extend(res)
+                        time.sleep(0.5)
+                
+                elif config['mode'] == "enterprise":
+                    # [企專模式]
+                    for kw in keywords:
+                        res = search_tender(driver, kw, "name")
+                        for r in res:
+                            is_target_org = any(target in r['Org'] for target in org_keywords)
+                            r['Tags'] = "★重點" if is_target_org else "其他"
+                        all_data.extend(res)
+                        time.sleep(0.5)
+            
+            # 3. 處理結果（後續代碼保持不變）
+            # ...
 
             # 3. 處理結果
             log_msg = f"[{task_name}] 無新資料。搜尋參數: {search_terms_log}"
@@ -379,6 +365,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
